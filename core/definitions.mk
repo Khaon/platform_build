@@ -2099,7 +2099,7 @@ endef
 
 #TODO: update the manifest to point to the dex file
 define add-dex-to-package
-$(hide) zip -qjX $@ $(dir $(PRIVATE_DEX_FILE))classes*.dex
+$(hide) zip -0qjX $@ $(dir $(PRIVATE_DEX_FILE))classes*.dex
 endef
 
 # Add java resources added by the current module.
