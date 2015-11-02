@@ -177,6 +177,12 @@ endef
 
 BUILDINFO_SH := build/tools/buildinfo.sh
 
+# TARGET_BUILD_FLAVOR and ro.build.flavor are used only by the test harness to distinguish builds.
+TARGET_BUILD_FLAVOR := $(TARGET_PRODUCT)-$(TARGET_BUILD_VARIANT)
+ifdef SANITIZE_TARGET
+TARGET_BUILD_FLAVOR := $(TARGET_BUILD_FLAVOR)_asan
+endif
+
 ifdef TARGET_SYSTEM_PROP
 system_prop_file := $(TARGET_SYSTEM_PROP)
 else
@@ -194,7 +200,7 @@ ifneq ($(PRODUCTS.$(INTERNAL_PRODUCT).PRODUCT_OEM_PROPERTIES),)
 		echo "import /oem/oem.prop $(prop)" >> $@;)
 endif
 	$(hide) TARGET_BUILD_TYPE="$(TARGET_BUILD_VARIANT)" \
-			TARGET_BUILD_FLAVOR="$(TARGET_PRODUCT)-$(TARGET_BUILD_VARIANT)" \
+			TARGET_BUILD_FLAVOR="$(TARGET_BUILD_FLAVOR)" \
 			TARGET_DEVICE="$(TARGET_DEVICE)" \
 			PRODUCT_NAME="$(TARGET_PRODUCT)" \
 			PRODUCT_BRAND="$(PRODUCT_BRAND)" \
@@ -314,7 +320,12 @@ $(PACKAGE_STATS_FILE): $(PACKAGES_TO_STAT)
 	@echo Package stats: $@
 	@mkdir -p $(dir $@)
 	$(hide) rm -f $@
+ifeq ($(PACKAGES_TO_STAT),)
+# Create empty package stats file if target builds no jar(s) or apk(s).
+	$(hide) touch $@
+else
 	$(hide) build/tools/dump-package-stats $^ > $@
+endif
 
 .PHONY: package-stats
 package-stats: $(PACKAGE_STATS_FILE)
@@ -1736,8 +1747,13 @@ $(APPS_ZIP): $(INSTALLED_SYSTEMIMAGE)
 	@echo "Package apps: $@"
 	$(hide) rm -rf $@
 	$(hide) mkdir -p $(dir $@)
-	$(hide) zip -qj $@ $(TARGET_OUT_APPS)/*/*.apk $(TARGET_OUT_APPS_PRIVILEGED)/*/*.apk
-
+	$(hide) apps_to_zip=`find $(TARGET_OUT_APPS) $(TARGET_OUT_APPS_PRIVILEGED) -mindepth 2 -maxdepth 3 -name "*.apk"`; \
+	if [ -z "$$apps_to_zip" ]; then \
+		echo "No apps to zip up. Generating empty apps archive." ; \
+		a=$$(mktemp /tmp/XXXXXXX) && touch $$a && zip $@ $$a && zip -d $@ $$a; \
+	else \
+		zip -qj $@ $$apps_to_zip; \
+	fi
 
 #------------------------------------------------------------------
 # A zip of emma code coverage meta files. Generated for fully emma
@@ -1966,10 +1982,14 @@ ifneq ($(dont_bother),true)
 include $(sort $(wildcard $(BUILD_SYSTEM)/tasks/*.mk))
 -include $(sort $(wildcard vendor/*/build/tasks/*.mk))
 -include $(sort $(wildcard device/*/build/tasks/*.mk))
+-include $(sort $(wildcard product/*/build/tasks/*.mk))
 # Also the project-specific tasks
 -include $(sort $(wildcard vendor/*/*/build/tasks/*.mk))
 -include $(sort $(wildcard device/*/*/build/tasks/*.mk))
+-include $(sort $(wildcard product/*/*/build/tasks/*.mk))
 endif
+
+include $(BUILD_SYSTEM)/product-graph.mk
 
 # -----------------------------------------------------------------
 # Create SDK repository packages. Must be done after tasks/* since
