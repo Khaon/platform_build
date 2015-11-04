@@ -1,5 +1,5 @@
 #
-# Copyright (C) 2015 The Android Open Source Project
+# Copyright 2015 The Android Open Source Project
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,12 +14,19 @@
 # limitations under the License.
 #
 
-# Provides dependencies necessary for verified boot
+#
+# Zip timestamp removal tool
+#
 
-PRODUCT_SUPPORTS_VBOOT := true
+LOCAL_PATH:= $(call my-dir)
+include $(CLEAR_VARS)
 
-# The dev key is used to sign boot and recovery images.
-# We expect this file to exist with the suffixes ".vbprivk" and ".vbpupk".
-# TODO: find a proper location for this
-PRODUCT_VBOOT_SIGNING_KEY := external/vboot_reference/tests/devkeys/kernel_data_key
-PRODUCT_VBOOT_SIGNING_SUBKEY := external/vboot_reference/tests/devkeys/kernel_subkey
+LOCAL_SRC_FILES := \
+	ZipTime.cpp \
+	ZipEntry.cpp \
+	ZipFile.cpp
+
+LOCAL_MODULE := ziptime
+LOCAL_MODULE_HOST_OS := darwin linux windows
+
+include $(BUILD_HOST_EXECUTABLE)
