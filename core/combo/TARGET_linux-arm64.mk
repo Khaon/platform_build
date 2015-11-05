@@ -63,6 +63,11 @@ TARGET_OBJCOPY := $(TARGET_TOOLS_PREFIX)objcopy
 TARGET_LD := $(TARGET_TOOLS_PREFIX)ld
 TARGET_READELF := $(TARGET_TOOLS_PREFIX)readelf
 TARGET_STRIP := $(TARGET_TOOLS_PREFIX)strip
+TARGET_NM := $(TARGET_TOOLS_PREFIX)nm
+
+define $(combo_var_prefix)transform-shared-lib-to-toc
+$(call _gen_toc_command_for_elf,$(1),$(2))
+endef
 
 TARGET_NO_UNDEFINED_LDFLAGS := -Wl,--no-undefined
 
@@ -110,6 +115,8 @@ TARGET_GLOBAL_LDFLAGS += \
 			-Wl,-maarch64linux \
 			-Wl,--hash-style=gnu \
 			-Wl,--fix-cortex-a53-843419 \
+			-fuse-ld=gold \
+			-Wl,--icf=safe \
 			$(arch_variant_ldflags)
 
 # Disable transitive dependency library symbol resolving.
