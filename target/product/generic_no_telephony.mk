@@ -49,9 +49,10 @@ PRODUCT_PACKAGES += \
     local_time.default \
     vibrator.default \
     power.default
-
+ifeq (false, $(strip $(BOARD_USE_DEVICE_AUDIO_EFFECTS_CONF)))
 PRODUCT_COPY_FILES := \
         frameworks/av/media/libeffects/data/audio_effects.conf:system/etc/audio_effects.conf
+endif
 
 PRODUCT_PROPERTY_OVERRIDES += \
     ro.carrier=unknown
