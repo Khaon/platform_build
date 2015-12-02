@@ -122,7 +122,7 @@ ifeq (,$(strip $(BUILD_FINGERPRINT)))
   ifneq ($(filter eng.%,$(BUILD_NUMBER)),)
     # Trim down BUILD_FINGERPRINT: the default BUILD_NUMBER makes it easily exceed
     # the Android system property length limit (PROPERTY_VALUE_MAX=92).
-    BF_BUILD_NUMBER := $(USER)$(shell $(DATE) +%m%d%H%M)
+    BF_BUILD_NUMBER := $(shell echo $${USER:0:6})$(shell $(DATE) +%m%d%H%M)
   else
     BF_BUILD_NUMBER := $(BUILD_NUMBER)
   endif
@@ -1453,14 +1453,11 @@ define package_files-copy-root
   fi
 endef
 
-built_ota_tools := \
-    $(call intermediates-dir-for,EXECUTABLES,applypatch,,,$(TARGET_PREFER_32_BIT))/applypatch \
-    $(call intermediates-dir-for,EXECUTABLES,sqlite3,,,$(TARGET_PREFER_32_BIT))/sqlite3
+built_ota_tools :=
 
 # We can't build static executables when SANITIZE_TARGET=address
 ifeq ($(strip $(SANITIZE_TARGET)),)
 built_ota_tools += \
-    $(call intermediates-dir-for,EXECUTABLES,applypatch_static,,,$(TARGET_PREFER_32_BIT))/applypatch_static \
     $(call intermediates-dir-for,EXECUTABLES,updater,,,$(TARGET_PREFER_32_BIT))/updater
 endif
 
