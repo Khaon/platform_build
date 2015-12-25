@@ -28,6 +28,7 @@ include $(BUILD_SYSTEM)/host_java_library_common.mk
 #######################################
 
 ifneq ($(LOCAL_NO_STANDARD_LIBRARIES),true)
+  LOCAL_JAVA_LIBRARIES +=  core-oj-hostdex
   LOCAL_JAVA_LIBRARIES +=  core-libart-hostdex
 endif
 
@@ -126,7 +127,7 @@ $(built_dex): PRIVATE_JACK_FLAGS := $(GLOBAL_JAVAC_DEBUG_FLAGS) $(LOCAL_JACK_FLA
 $(built_dex): PRIVATE_JACK_VERSION := $(LOCAL_JACK_VERSION)
 $(built_dex): $(java_sources) $(java_resource_sources) $(full_jack_lib_deps) \
         $(jar_manifest_file) $(proto_java_sources_file_stamp) $(LOCAL_MODULE_MAKEFILE_DEP) \
-        $(LOCAL_ADDITIONAL_DEPENDENCIES) $(JACK)
+        $(LOCAL_ADDITIONAL_DEPENDENCIES) $(JACK) | setup-jack-server
 	@echo Building with Jack: $@
 	$(jack-java-to-dex)
 

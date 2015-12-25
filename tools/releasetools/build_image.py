@@ -129,8 +129,8 @@ def AdjustPartitionSizeForVerity(partition_size, fec_supported):
 
 AdjustPartitionSizeForVerity.results = {}
 
-def BuildVerityFEC(sparse_image_path, verity_fec_path, prop_dict):
-  cmd = "fec -e %s %s" % (sparse_image_path, verity_fec_path)
+def BuildVerityFEC(sparse_image_path, verity_path, verity_fec_path):
+  cmd = "fec -e %s %s %s" % (sparse_image_path, verity_path, verity_fec_path)
   print cmd
   status, output = commands.getstatusoutput(cmd)
   if status:
@@ -182,13 +182,33 @@ def Append2Simg(sparse_image_path, unsparse_image_path, error_message):
     return False
   return True
 
-def BuildVerifiedImage(data_image_path, verity_image_path,
-                       verity_metadata_path):
-  if not Append2Simg(data_image_path, verity_image_path,
-                     "Could not append verity tree!"):
+def Append(target, file_to_append, error_message):
+  cmd = 'cat %s >> %s' % (file_to_append, target)
+  print cmd
+  status, output = commands.getstatusoutput(cmd)
+  if status:
+    print "%s: %s" % (error_message, output)
     return False
-  if not Append2Simg(data_image_path, verity_metadata_path,
-                     "Could not append verity metadata!"):
+  return True
+
+def BuildVerifiedImage(data_image_path, verity_image_path,
+                       verity_metadata_path, verity_fec_path,
+                       fec_supported):
+  if not Append(verity_image_path, verity_metadata_path,
+                "Could not append verity metadata!"):
+    return False
+
+  if fec_supported:
+    # build FEC for the entire partition, including metadata
+    if not BuildVerityFEC(data_image_path, verity_image_path,
+                          verity_fec_path):
+      return False
+
+    if not Append(verity_image_path, verity_fec_path, "Could not append FEC!"):
+      return False
+
+  if not Append2Simg(data_image_path, verity_image_path,
+                     "Could not append verity data!"):
     return False
   return True
 
@@ -252,19 +272,11 @@ def MakeVerityEnabledImage(out_file, fec_supported, prop_dict):
   # build the full verified image
   if not BuildVerifiedImage(out_file,
                             verity_image_path,
-                            verity_metadata_path):
+                            verity_metadata_path,
+                            verity_fec_path,
+                            fec_supported):
     shutil.rmtree(tempdir_name, ignore_errors=True)
     return False
-
-  if fec_supported:
-    # build FEC for the entire partition, including metadata
-    if not BuildVerityFEC(out_file, verity_fec_path, prop_dict):
-      shutil.rmtree(tempdir_name, ignore_errors=True)
-      return False
-
-    if not Append2Simg(out_file, verity_fec_path, "Could not append FEC!"):
-      shutil.rmtree(tempdir_name, ignore_errors=True)
-      return False
 
   shutil.rmtree(tempdir_name, ignore_errors=True)
   return True
@@ -350,7 +362,8 @@ def BuildImage(in_dir, prop_dict, out_file, target_out=None):
   elif fs_type.startswith("squash"):
     build_command = ["mksquashfsimage.sh"]
     build_command.extend([in_dir, out_file])
-    build_command.extend(["-s"])
+    if "squashfs_sparse_flag" in prop_dict:
+      build_command.extend([prop_dict["squashfs_sparse_flag"]])
     build_command.extend(["-m", prop_dict["mount_point"]])
     if target_out:
       build_command.extend(["-d", target_out])
@@ -478,6 +491,7 @@ def ImagePropFromGlobalDict(glob_dict, mount_point):
 
   common_props = (
       "extfs_sparse_flag",
+      "squashfs_sparse_flag",
       "mkyaffs2_extra_flags",
       "selinux_fc",
       "skip_fsck",

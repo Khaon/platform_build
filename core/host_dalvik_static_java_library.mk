@@ -24,6 +24,7 @@ ifeq ($(HOST_OS),linux)
 LOCAL_UNINSTALLABLE_MODULE := true
 LOCAL_IS_STATIC_JAVA_LIBRARY := true
 USE_CORE_LIB_BOOTCLASSPATH := true
+LOCAL_JAVA_LIBRARIES += core-oj-hostdex
 LOCAL_JAVA_LIBRARIES += core-libart-hostdex
 
 intermediates.COMMON := $(call intermediates-dir-for,JAVA_LIBRARIES,$(LOCAL_MODULE),true,COMMON,)
@@ -49,7 +50,7 @@ endif
 $(full_classes_jack): $(java_sources) $(java_resource_sources) $(full_jack_lib_deps) \
         $(jar_manifest_file) $(layers_file) $(LOCAL_MODULE_MAKEFILE_DEP) \
         $(LOCAL_ADDITIONAL_DEPENDENCIES) $(LOCAL_JARJAR_RULES) \
-        $(JACK)
+        $(JACK) | setup-jack-server
 	@echo Building with Jack: $@
 	$(java-to-jack)
 

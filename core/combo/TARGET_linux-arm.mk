@@ -101,7 +101,7 @@ $(combo_2nd_arch_prefix)TARGET_GLOBAL_CFLAGS += \
 			-ffunction-sections \
 			-fdata-sections \
 			-funwind-tables \
-			-fstack-protector \
+			-fstack-protector-strong \
 			-Wa,--noexecstack \
 			-Werror=format-security \
 			-D_FORTIFY_SOURCE=2 \
@@ -138,6 +138,7 @@ $(combo_2nd_arch_prefix)TARGET_GLOBAL_LDFLAGS += \
 			-Wl,--fatal-warnings \
 			-Wl,--icf=safe \
 			-Wl,--hash-style=gnu \
+			-Wl,--no-undefined-version \
 			$(arch_variant_ldflags)
 
 $(combo_2nd_arch_prefix)TARGET_GLOBAL_CFLAGS += -mthumb-interwork

@@ -94,7 +94,7 @@ TARGET_GLOBAL_CFLAGS += \
 			-fstrict-aliasing \
 			-funswitch-loops \
 			-funwind-tables \
-			-fstack-protector \
+			-fstack-protector-strong \
 			-m64 \
 			-no-canonical-prefixes \
 			-fno-canonical-system-headers
@@ -138,6 +138,7 @@ TARGET_GLOBAL_LDFLAGS += -Wl,--warn-shared-textrel
 TARGET_GLOBAL_LDFLAGS += -Wl,--fatal-warnings
 TARGET_GLOBAL_LDFLAGS += -Wl,--gc-sections
 TARGET_GLOBAL_LDFLAGS += -Wl,--hash-style=gnu
+TARGET_GLOBAL_LDFLAGS += -Wl,--no-undefined-version
 
 TARGET_C_INCLUDES := \
 	$(libc_root)/arch-x86_64/include \

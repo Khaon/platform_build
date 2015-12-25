@@ -453,6 +453,7 @@ AIDL := $(HOST_OUT_EXECUTABLES)/aidl
 AAPT := $(HOST_OUT_EXECUTABLES)/aapt
 ZIPALIGN := $(HOST_OUT_EXECUTABLES)/zipalign
 SIGNAPK_JAR := $(HOST_OUT_JAVA_LIBRARIES)/signapk$(COMMON_JAVA_PACKAGE_SUFFIX)
+SIGNAPK_JNI_LIBRARY_PATH := $(HOST_OUT_SHARED_LIBRARIES)
 LLVM_RS_CC := $(HOST_OUT_EXECUTABLES)/llvm-rs-cc
 BCC_COMPAT := $(HOST_OUT_EXECUTABLES)/bcc_compat
 
@@ -469,6 +470,8 @@ AIDL := $(prebuilt_sdk_tools_bin)/aidl
 AAPT := $(prebuilt_sdk_tools_bin)/aapt
 ZIPALIGN := $(prebuilt_sdk_tools_bin)/zipalign
 SIGNAPK_JAR := $(prebuilt_sdk_tools)/lib/signapk$(COMMON_JAVA_PACKAGE_SUFFIX)
+# Use 64-bit libraries unconditionally because 32-bit JVMs are no longer supported
+SIGNAPK_JNI_LIBRARY_PATH := $(prebuilt_sdk_tools)/$(HOST_OS)/lib64
 
 DX := $(prebuilt_sdk_tools)/dx
 MAINDEXCLASSES := $(prebuilt_sdk_tools)/mainDexClasses
@@ -568,6 +571,7 @@ endif
 # ijar converts a .jar file to a smaller .jar file which only has its
 # interfaces.
 IJAR := $(HOST_OUT_EXECUTABLES)/ijar$(BUILD_EXECUTABLE_SUFFIX)
+DEXDUMP := $(HOST_OUT_EXECUTABLES)/dexdump2$(BUILD_EXECUTABLE_SUFFIX)
 
 # relocation packer
 RELOCATION_PACKER := prebuilts/misc/$(BUILD_OS)-$(HOST_PREBUILT_ARCH)/relocation_packer/relocation_packer
@@ -688,9 +692,21 @@ HOST_CROSS_GLOBAL_CFLAGS += $(HOST_CROSS_RELEASE_CFLAGS)
 HOST_CROSS_GLOBAL_CPPFLAGS += $(HOST_CROSS_RELEASE_CPPFLAGS)
 endif
 
+ifdef BRILLO
+# Add a C define that identifies Brillo targets. __BRILLO__ should only be used
+# to differentiate between Brillo and non-Brillo-but-Android environments. Use
+# __ANDROID__ instead to test if something is being built in an Android-derived
+# environment (including Brillo) as opposed to an entirely different
+# environment (e.g. Chrome OS).
+TARGET_GLOBAL_CFLAGS += -D__BRILLO__
+ifdef TARGET_2ND_ARCH
+$(TARGET_2ND_ARCH_VAR_PREFIX)TARGET_GLOBAL_CFLAGS += -D__BRILLO__
+endif
+endif
+
 # allow overriding default Java libraries on a per-target basis
 ifeq ($(TARGET_DEFAULT_JAVA_LIBRARIES),)
-  TARGET_DEFAULT_JAVA_LIBRARIES := core-libart core-junit ext framework okhttp
+  TARGET_DEFAULT_JAVA_LIBRARIES := core-oj core-libart core-junit ext framework okhttp
 endif
 
 # Flags for DEX2OAT

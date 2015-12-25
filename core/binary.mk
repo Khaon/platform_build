@@ -75,7 +75,15 @@ ifdef LOCAL_SDK_VERSION
   my_ndk_source_root := $(HISTORICAL_NDK_VERSIONS_ROOT)/current/sources
   my_ndk_sysroot := $(HISTORICAL_NDK_VERSIONS_ROOT)/current/platforms/android-$(LOCAL_SDK_VERSION)/arch-$(TARGET_$(LOCAL_2ND_ARCH_VAR_PREFIX)ARCH)
   my_ndk_sysroot_include := $(my_ndk_sysroot)/usr/include
-  ifeq (x86_64,$(TARGET_$(LOCAL_2ND_ARCH_VAR_PREFIX)ARCH))
+
+  # x86_64 and and mips64 are both multilib toolchains, so their libraries are
+  # installed in /usr/lib64. Aarch64, on the other hand, is not a multilib
+  # compiler, so its libraries are in /usr/lib.
+  #
+  # Mips32r6 is yet another variation, with libraries installed in libr6.
+  #
+  # For the rest, the libraries are installed simply to /usr/lib.
+  ifneq (,$(filter x86_64 mips64,$(TARGET_$(LOCAL_2ND_ARCH_VAR_PREFIX)ARCH)))
     my_ndk_sysroot_lib := $(my_ndk_sysroot)/usr/lib64
   else ifeq (mips32r6,$(TARGET_$(LOCAL_2ND_ARCH_VAR_PREFIX)ARCH_VARIANT))
     my_ndk_sysroot_lib := $(my_ndk_sysroot)/usr/libr6
@@ -1194,7 +1202,7 @@ built_shared_libraries := \
     $(addprefix $($(LOCAL_2ND_ARCH_VAR_PREFIX)$(my_prefix)OUT_INTERMEDIATE_LIBRARIES)/, \
       $(addsuffix $(so_suffix), \
         $(my_shared_libraries)))
-built_shared_library_tocs := $(addsuffix .toc, $(built_shared_libraries))
+built_shared_library_deps := $(addsuffix .toc, $(built_shared_libraries))
 
 # Add the NDK libraries to the built module dependency
 my_system_shared_libraries_fullpath := \
@@ -1208,7 +1216,13 @@ built_shared_libraries := \
     $(addprefix $($(LOCAL_2ND_ARCH_VAR_PREFIX)$(my_prefix)OUT_INTERMEDIATE_LIBRARIES)/, \
       $(addsuffix $(so_suffix), \
         $(installed_shared_library_module_names)))
-built_shared_library_tocs := $(addsuffix .toc, $(built_shared_libraries))
+ifdef LOCAL_IS_HOST_MODULE
+# Disable .toc optimization for host modules: we may run the host binaries during the build process
+# and the libraries' implementation matters.
+built_shared_library_deps := $(built_shared_libraries)
+else
+built_shared_library_deps := $(addsuffix .toc, $(built_shared_libraries))
+endif
 my_system_shared_libraries_fullpath :=
 endif
 
@@ -1304,7 +1318,7 @@ $(LOCAL_INTERMEDIATE_TARGETS): PRIVATE_ALL_OBJECTS := $(all_objects)
 ###########################################################
 # all_libraries is used for the dependencies on LOCAL_BUILT_MODULE.
 all_libraries := \
-    $(built_shared_library_tocs) \
+    $(built_shared_library_deps) \
     $(my_system_shared_libraries_fullpath) \
     $(built_static_libraries) \
     $(built_whole_libraries)

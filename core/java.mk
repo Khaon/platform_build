@@ -654,14 +654,19 @@ jack_all_deps := $(java_sources) $(java_resource_sources) $(full_jack_lib_deps) 
         $(LOCAL_MODULE_MAKEFILE_DEP) $(JACK)
 
 ifeq ($(LOCAL_IS_STATIC_JAVA_LIBRARY),true)
-$(full_classes_jack): $(jack_all_deps)
+$(full_classes_jack): $(jack_all_deps) | setup-jack-server
 	@echo Building with Jack: $@
 	$(java-to-jack)
+
+# Update timestamps of .toc files for static java libraries so
+# dependents will be always rebuilt.
+$(built_dex).toc: $(full_classes_jack)
+	touch $@
 
 else #LOCAL_IS_STATIC_JAVA_LIBRARY
 $(built_dex_intermediate): PRIVATE_CLASSES_JACK := $(full_classes_jack)
 
-$(built_dex_intermediate): $(jack_all_deps)
+$(built_dex_intermediate): $(jack_all_deps) | setup-jack-server
 	@echo Building with Jack: $@
 	$(jack-java-to-dex)
 
@@ -670,6 +675,8 @@ $(built_dex_intermediate): $(jack_all_deps)
 # change $(full_classes_jack).
 $(full_classes_jack): $(built_dex_intermediate)
 	$(hide) touch $@
+
+$(call define-dex-to-toc-rule, $(intermediates.COMMON))
 
 endif #LOCAL_IS_STATIC_JAVA_LIBRARY
 
@@ -680,7 +687,7 @@ else
 $(noshrob_classes_jack): PRIVATE_JACK_INCREMENTAL_DIR :=
 endif
 $(noshrob_classes_jack): PRIVATE_JACK_PROGUARD_FLAGS :=
-$(noshrob_classes_jack): $(jack_all_deps)
+$(noshrob_classes_jack): $(jack_all_deps) | setup-jack-server
 	@echo Building with Jack: $@
 	$(java-to-jack)
 endif  # full_classes_jar is defined

@@ -94,7 +94,7 @@ $(combo_2nd_arch_prefix)TARGET_GLOBAL_CFLAGS += \
 			-fstrict-aliasing \
 			-funswitch-loops \
 			-funwind-tables \
-			-fstack-protector \
+			-fstack-protector-strong \
 			-m32 \
 			-no-canonical-prefixes \
 			-fno-canonical-system-headers \
@@ -129,6 +129,7 @@ $(combo_2nd_arch_prefix)TARGET_GLOBAL_LDFLAGS += -Wl,--warn-shared-textrel
 $(combo_2nd_arch_prefix)TARGET_GLOBAL_LDFLAGS += -Wl,--fatal-warnings
 $(combo_2nd_arch_prefix)TARGET_GLOBAL_LDFLAGS += -Wl,--gc-sections
 $(combo_2nd_arch_prefix)TARGET_GLOBAL_LDFLAGS += -Wl,--hash-style=gnu
+$(combo_2nd_arch_prefix)TARGET_GLOBAL_LDFLAGS += -Wl,--no-undefined-version
 
 $(combo_2nd_arch_prefix)TARGET_C_INCLUDES := \
 	$(libc_root)/arch-x86/include \

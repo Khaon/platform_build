@@ -11,11 +11,6 @@ else
 DEX2OAT := $(HOST_OUT_EXECUTABLES)/dex2oatd$(HOST_EXECUTABLE_SUFFIX)
 endif
 
-# By default, do not run rerun dex2oat if the tool changes.
-# Comment out the | to force dex2oat to rerun on after all changes.
-DEX2OAT_DEPENDENCY := art/runtime/oat.cc # dependency on oat version number
-DEX2OAT_DEPENDENCY += art/runtime/image.cc # dependency on image version number
-DEX2OAT_DEPENDENCY += |
 DEX2OAT_DEPENDENCY += $(DEX2OAT)
 
 # Use the first preloaded-classes file in PRODUCT_COPY_FILES.
@@ -102,5 +97,6 @@ $(hide) $(DEX2OAT) \
 	--instruction-set-features=$($(PRIVATE_2ND_ARCH_VAR_PREFIX)DEX2OAT_TARGET_INSTRUCTION_SET_FEATURES) \
 	--include-patch-information --runtime-arg -Xnorelocate --no-generate-debug-info \
 	--abort-on-hard-verifier-error \
+	--no-inline-from=core-oj.jar \
 	$(PRIVATE_DEX_PREOPT_FLAGS)
 endef

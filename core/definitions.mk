@@ -1756,7 +1756,8 @@ define dump-words-to-file
         @$(call emit-line,$(wordlist 4401,4600,$(1)),$(2))
         @$(call emit-line,$(wordlist 4601,4800,$(1)),$(2))
         @$(call emit-line,$(wordlist 4801,5000,$(1)),$(2))
-        @$(if $(wordlist 5001,5002,$(1)),$(error Too many words ($(words $(1)))))
+        @$(call emit-line,$(wordlist 5001,5200,$(1)),$(2))
+        @$(if $(wordlist 5201,5202,$(1)),$(error Too many words ($(words $(1)))))
 endef
 
 # For a list of jar files, unzip them to a specified directory,
@@ -1896,7 +1897,6 @@ $(call call-jack) \
     -D jack.import.resource.policy=keep-first \
     -D jack.import.type.policy=keep-first \
     --output-jack $(PRIVATE_CLASSES_JACK) \
-    -D jack.java.source.version=1.7 \
     $(if $(PRIVATE_JACK_INCREMENTAL_DIR),--incremental-folder $(PRIVATE_JACK_INCREMENTAL_DIR)) \
     --output-dex $(PRIVATE_JACK_INTERMEDIATES_DIR) \
     $(addprefix --config-jarjar ,$(strip $(PRIVATE_JARJAR_RULES))) \
@@ -1948,9 +1948,9 @@ $(hide) mv $1.tmp $1
 endef
 endif
 
-## Rule to creates a table of contents from a .jar file.
+## Rule to create a table of contents from a .jar file.
 ## Must be called with $(eval).
-# $1: A .jar file
+# $(1): A .jar file
 define _transform-jar-to-toc
 $1.toc: $1 | $(IJAR)
 	@echo Generating TOC: $$@
@@ -1959,10 +1959,39 @@ $1.toc: $1 | $(IJAR)
 endef
 
 ## Define a rule which generates .jar.toc and mark it as .KATI_RESTAT.
+# $(1): A .jar file
 define define-jar-to-toc-rule
 $(eval $(call _transform-jar-to-toc,$1))\
 $(eval .KATI_RESTAT: $1.toc)
 endef
+
+ifeq (,$(TARGET_BUILD_APPS))
+
+## Rule to create a table of contents from a .dex file.
+## Must be called with $(eval).
+# $(1): The directory which contains classes*.dex files
+define _transform-dex-to-toc
+$1/classes.dex.toc: PRIVATE_INPUT_DEX_FILES := $1/classes*.dex
+$1/classes.dex.toc: $1/classes.dex $(DEXDUMP)
+	@echo Generating TOC: $$@
+	$(hide) $(DEXDUMP) -l xml $$(PRIVATE_INPUT_DEX_FILES) > $$@.tmp
+	$$(call commit-change-for-toc,$$@)
+endef
+
+## Define a rule which generates .dex.toc and mark it as .KATI_RESTAT.
+# $(1): The directory which contains classes*.dex files
+define define-dex-to-toc-rule
+$(eval $(call _transform-dex-to-toc,$1))\
+$(eval .KATI_RESTAT: $1/classes.dex.toc)
+endef
+
+else
+
+# Turn off .toc optimization for apps build as we cannot build dexdump.
+define define-dex-to-toc-rule
+endef
+
+endif  # TARGET_BUILD_APPS
 
 
 # Invoke Jack to compile java from source to jack files without shrink or obfuscation.
@@ -2008,7 +2037,6 @@ $(call call-jack) \
     $(if $(PRIVATE_EXTRA_JAR_ARGS),--import-resource $@.res.tmp) \
     -D jack.import.resource.policy=keep-first \
     -D jack.import.type.policy=keep-first \
-    -D jack.java.source.version=1.7 \
     $(if $(PRIVATE_JACK_INCREMENTAL_DIR),--incremental-folder $(PRIVATE_JACK_INCREMENTAL_DIR)) \
     --output-jack $@ \
     $(addprefix --config-jarjar ,$(strip $(PRIVATE_JARJAR_RULES))) \
@@ -2165,7 +2193,7 @@ endef
 #
 define sign-package
 $(hide) mv $@ $@.unsigned
-$(hide) java -jar $(SIGNAPK_JAR) \
+$(hide) java -Djava.library.path=$(SIGNAPK_JNI_LIBRARY_PATH) -jar $(SIGNAPK_JAR) \
     $(PRIVATE_CERTIFICATE) $(PRIVATE_PRIVATE_KEY) \
     $(PRIVATE_ADDITIONAL_CERTIFICATES) $@.unsigned $@.signed
 $(hide) mv $@.signed $@
