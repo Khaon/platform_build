@@ -4,6 +4,9 @@ SOONG_BUILD_NINJA := $(SOONG_OUT_DIR)/build.ninja
 SOONG_ANDROID_MK := $(SOONG_OUT_DIR)/Android.mk
 SOONG_VARIABLES := $(SOONG_OUT_DIR)/soong.variables
 SOONG_IN_MAKE := $(SOONG_OUT_DIR)/.soong.in_make
+SOONG_HOST_EXECUTABLES := $(SOONG_OUT_DIR)/host/$(HOST_PREBUILT_TAG)/bin
+KATI := $(SOONG_HOST_EXECUTABLES)/ckati
+MAKEPARALLEL := $(SOONG_HOST_EXECUTABLES)/makeparallel
 
 ifeq (,$(filter /%,$(SOONG_OUT_DIR)))
 SOONG_TOP_RELPATH := $(shell python -c "import os; print os.path.relpath('$(TOP)', '$(SOONG_OUT_DIR)')")
@@ -23,9 +26,8 @@ $(SOONG_VARIABLES): FORCE
 	$(hide) mkdir -p $(dir $@)
 	$(hide) (\
 	echo '{'; \
-	echo '    "Device_uses_jemalloc": $(if $(filter dlmalloc,$(MALLOC_IMPL)),false,true),'; \
-	echo '    "Device_uses_dlmalloc": $(if $(filter dlmalloc,$(MALLOC_IMPL)),true,false),'; \
-	echo '    $(if $(BOARD_MALLOC_ALIGNMENT),"Dlmalloc_alignment": $(BOARD_MALLOC_ALIGNMENT)$(comma),)'; \
+	echo '    "Device_uses_jemalloc": $(if $(filter true,$(MALLOC_SVELTE)),false,true),'; \
+	echo '    "Device_uses_dlmalloc": $(if $(filter true,$(MALLOC_SVELTE)),true,false),'; \
 	echo '    "Platform_sdk_version": $(PLATFORM_SDK_VERSION),'; \
 	echo '    "Unbundled_build": $(if $(TARGET_BUILD_APPS),true,false),'; \
 	echo '    "Brillo": $(if $(BRILLO),true,false),'; \
@@ -58,4 +60,7 @@ $(SOONG_IN_MAKE):
 
 # Build an Android.mk listing all soong outputs as prebuilts
 $(SOONG_ANDROID_MK): $(SOONG) $(SOONG_VARIABLES) $(SOONG_IN_MAKE) FORCE
-	$(hide) $(SOONG) $(SOONG_BUILD_NINJA) $(NINJA_ARGS)
+	$(hide) $(SOONG) $(KATI) $(MAKEPARALLEL) $(NINJA_ARGS)
+
+$(KATI): $(SOONG_ANDROID_MK)
+$(MAKEPARALLEL): $(SOONG_ANDROID_MK)

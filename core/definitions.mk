@@ -142,11 +142,27 @@ $(strip \
 endef
 
 ###########################################################
+## Remove any makefiles that are being handled by soong
+###########################################################
+ifeq ($(USE_SOONG),true)
+define filter-soong-makefiles
+$(foreach mk,$(1),\
+  $(if $(wildcard $(patsubst %/Android.mk,%/Android.bp,$(mk))),\
+    $(info skipping $(mk) ...),\
+    $(mk)))
+endef
+else
+define filter-soong-makefiles
+$(1)
+endef
+endif
+
+###########################################################
 ## Retrieve a list of all makefiles immediately below some directory
 ###########################################################
 
 define all-makefiles-under
-$(sort $(wildcard $(1)/*/Android.mk))
+$(sort $(call filter-soong-makefiles,$(wildcard $(1)/*/Android.mk)))
 endef
 
 ###########################################################
@@ -157,8 +173,9 @@ endef
 # $(1): directory to search under
 # Ignores $(1)/Android.mk
 define first-makefiles-under
-$(shell build/tools/findleaves.py $(FIND_LEAVES_EXCLUDES) \
-        --mindepth=2 $(1) Android.mk)
+$(call filter-soong-makefiles,\
+  $(shell build/tools/findleaves.py $(FIND_LEAVES_EXCLUDES) \
+        --mindepth=2 $(1) Android.mk))
 endef
 
 ###########################################################
@@ -178,7 +195,8 @@ endef
 
 # $(1): List of directories to look for under this directory
 define all-named-subdir-makefiles
-$(sort $(wildcard $(addsuffix /Android.mk, $(addprefix $(call my-dir)/,$(1)))))
+$(sort $(call filter-soong-makefiles,\
+  $(wildcard $(addsuffix /Android.mk, $(addprefix $(call my-dir)/,$(1))))))
 endef
 
 ###########################################################
@@ -875,7 +893,7 @@ endef
 ## Commands for running lex
 ###########################################################
 
-define transform-l-to-cpp
+define transform-l-to-c-or-cpp
 @echo "Lex: $(PRIVATE_MODULE) <= $<"
 @mkdir -p $(dir $@)
 $(hide) $(LEX) -o$@ $<
@@ -884,20 +902,14 @@ endef
 ###########################################################
 ## Commands for running yacc
 ##
-## Because the extension of c++ files can change, the
-## extension must be specified in $1.
-## E.g, "$(call transform-y-to-cpp,.cpp)"
 ###########################################################
 
-define transform-y-to-cpp
+define transform-y-to-c-or-cpp
 @echo "Yacc: $(PRIVATE_MODULE) <= $<"
 @mkdir -p $(dir $@)
-$(YACC) $(PRIVATE_YACCFLAGS) -o $@ $<
-touch $(@:$1=$(YACC_HEADER_SUFFIX))
-echo '#ifndef '$(@F:$1=_h) > $(@:$1=.h)
-echo '#define '$(@F:$1=_h) >> $(@:$1=.h)
-cat $(@:$1=$(YACC_HEADER_SUFFIX)) >> $(@:$1=.h)
-echo '#endif' >> $(@:$1=.h)
+$(YACC) $(PRIVATE_YACCFLAGS) \
+  --defines=$(basename $@).h \
+  -o $@ $<
 endef
 
 ###########################################################

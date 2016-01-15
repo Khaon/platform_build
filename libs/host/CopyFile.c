@@ -25,6 +25,7 @@
 #include <assert.h>
 
 #if defined(_WIN32)
+#include <direct.h>  /* For _mkdir() */
 #  define mkdir(path,mode)   _mkdir(path)
 #  define S_ISLNK(s) 0
 #  define lstat stat
@@ -66,9 +67,9 @@ static bool isSourceNewer(const struct stat* pSrcStat, const struct stat* pDstSt
  */
 static bool isHiresMtime(const struct stat* pSrcStat)
 {
-#if defined(__CYGWIN__) || defined(__MINGW32__)
-  return 0;
-#elif defined(MACOSX_RSRC)
+#if defined(_WIN32)
+    return 0;
+#elif defined(__APPLE__)
     return pSrcStat->st_mtimespec.tv_nsec > 0;
 #else
     return pSrcStat->st_mtim.tv_nsec > 0;
@@ -82,8 +83,7 @@ static bool isHiresMtime(const struct stat* pSrcStat)
  */
 static bool isSameFile(const struct stat* pSrcStat, const struct stat* pDstStat)
 {
-#ifndef HAVE_VALID_STAT_ST_INO
-  /* TODO: suspicious, we hit this case even when compiling for linux: b/26355387 */
+#if defined(_WIN32)
   (void)pSrcStat;
   (void)pDstStat;
     /* with MSVCRT.DLL, stat always sets st_ino to 0, and there is no simple way to */
@@ -295,7 +295,8 @@ static int copyRegular(const char* src, const char* dst, const struct stat* pSrc
     if (copyResult != 0)
         return -1;
 
-#ifdef MACOSX_RSRC
+#if defined(__APPLE__)
+    // Copy Mac OS X resource forks too.
     {
         char* srcRsrcName = NULL;
         char* dstRsrcName = NULL;
