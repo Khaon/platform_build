@@ -989,10 +989,22 @@ define transform-aidl-to-cpp
 @mkdir -p $(dir $@)
 @mkdir -p $(PRIVATE_HEADER_OUTPUT_DIR)
 @echo "Generating C++ from AIDL: $(PRIVATE_MODULE) <= $<"
-$(hide) $(AIDL_CPP) -d$(basename $@).P $(PRIVATE_AIDL_FLAGS) \
+$(hide) $(AIDL_CPP) -d$(basename $@).aidl.P $(PRIVATE_AIDL_FLAGS) \
     $< $(PRIVATE_HEADER_OUTPUT_DIR) $@
 endef
 
+## Given a .aidl file path generate the rule to compile it a .cpp file.
+# $(1): a .aidl source file
+# $(2): a directory to place the generated .cpp files in
+# $(3): name of a variable to add the path to the generated source file to
+#
+# You must call this with $(eval).
+define define-aidl-cpp-rule
+define-aidl-cpp-rule-src := $(patsubst %.aidl,%$(LOCAL_CPP_EXTENSION),$(subst ../,dotdot/,$(addprefix $(2)/,$(1))))
+$$(define-aidl-cpp-rule-src) : $(LOCAL_PATH)/$(1) $(AIDL_CPP)
+	$$(transform-aidl-to-cpp)
+$(3) += $$(define-aidl-cpp-rule-src)
+endef
 
 ###########################################################
 ## Commands for running java-event-log-tags.py
