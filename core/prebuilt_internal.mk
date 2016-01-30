@@ -26,11 +26,14 @@ ifdef LOCAL_PREBUILT_MODULE_FILE
 else
   ifdef LOCAL_SRC_FILES_$($(my_prefix)$(LOCAL_2ND_ARCH_VAR_PREFIX)ARCH)
     my_prebuilt_src_file := $(LOCAL_PATH)/$(LOCAL_SRC_FILES_$($(my_prefix)$(LOCAL_2ND_ARCH_VAR_PREFIX)ARCH))
+    LOCAL_SRC_FILES_$($(my_prefix)$(LOCAL_2ND_ARCH_VAR_PREFIX)ARCH)) :=
   else
     ifdef LOCAL_SRC_FILES_$(my_32_64_bit_suffix)
       my_prebuilt_src_file := $(LOCAL_PATH)/$(LOCAL_SRC_FILES_$(my_32_64_bit_suffix))
+      LOCAL_SRC_FILES_$(my_32_64_bit_suffix) :=
     else
       my_prebuilt_src_file := $(LOCAL_PATH)/$(LOCAL_SRC_FILES)
+      LOCAL_SRC_FILES :=
     endif
   endif
 endif
@@ -213,7 +216,7 @@ embedded_prebuilt_jni_libs := 'lib/*.so'
 endif
 $(built_module): PRIVATE_EMBEDDED_JNI_LIBS := $(embedded_prebuilt_jni_libs)
 
-$(built_module) : $(my_prebuilt_src_file) | $(ACP) $(ZIPALIGN) $(SIGNAPK_JAR) $(AAPT)
+$(built_module) : $(my_prebuilt_src_file) | $(ACP) $(ZIPALIGN) $(SIGNAPK_JAR)
 	$(transform-prebuilt-to-target)
 	$(uncompress-shared-libs)
 ifneq ($(LOCAL_CERTIFICATE),PRESIGNED)
@@ -252,7 +255,7 @@ my_src_dir := $(LOCAL_PATH)/$(my_src_dir)
 
 $(built_apk_splits) : PRIVATE_PRIVATE_KEY := $(LOCAL_CERTIFICATE).pk8
 $(built_apk_splits) : PRIVATE_CERTIFICATE := $(LOCAL_CERTIFICATE).x509.pem
-$(built_apk_splits) : $(built_module_path)/%.apk : $(my_src_dir)/%.apk | $(ACP) $(AAPT)
+$(built_apk_splits) : $(built_module_path)/%.apk : $(my_src_dir)/%.apk | $(ACP)
 	$(copy-file-to-new-target)
 	$(sign-package)
 
