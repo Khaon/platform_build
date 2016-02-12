@@ -297,6 +297,9 @@ LOCAL_SRC_FILES_$(HOST_OS)_$(HOST_2ND_ARCH):=
 endif
 ifdef HOST_CROSS_OS
 LOCAL_SRC_FILES_$(HOST_CROSS_OS)_$(HOST_CROSS_ARCH):=
+ifdef HOST_CROSS_2ND_ARCH
+LOCAL_SRC_FILES_$(HOST_CROSS_OS)_$(HOST_CROSS_2ND_ARCH):=
+endif
 endif
 
 LOCAL_SRC_FILES_32:=
@@ -337,6 +340,7 @@ LOCAL_CLANG_32:=
 LOCAL_CLANG_64:=
 LOCAL_INIT_RC_32:=
 LOCAL_INIT_RC_64:=
+LOCAL_JAVA_LANGUAGE_VERSION:=
 
 # Trim MAKEFILE_LIST so that $(call my-dir) doesn't need to
 # iterate over thousands of entries every time.

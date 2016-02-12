@@ -85,9 +85,12 @@ else
 $(info   TARGET_KERNEL_TOOLCHAIN=4.8)
 endif
 $(info   HOST_ARCH=$(HOST_ARCH))
+$(info   HOST_2ND_ARCH=$(HOST_2ND_ARCH))
 $(info   HOST_OS=$(HOST_OS))
 $(info   HOST_OS_EXTRA=$(HOST_OS_EXTRA))
 $(info   HOST_CROSS_OS=$(HOST_CROSS_OS))
+$(info   HOST_CROSS_ARCH=$(HOST_CROSS_ARCH))
+$(info   HOST_CROSS_2ND_ARCH=$(HOST_CROSS_2ND_ARCH))
 $(info   HOST_BUILD_TYPE=$(HOST_BUILD_TYPE))
 $(info   BUILD_ID=$(BUILD_ID))
 $(info   OUT_DIR=$(OUT_DIR))

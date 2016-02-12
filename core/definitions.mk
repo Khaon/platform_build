@@ -88,6 +88,7 @@ $(TARGET_2ND_ARCH_VAR_PREFIX)TARGET_DEPENDENCIES_ON_SHARED_LIBRARIES :=
 HOST_DEPENDENCIES_ON_SHARED_LIBRARIES :=
 $(HOST_2ND_ARCH_VAR_PREFIX)HOST_DEPENDENCIES_ON_SHARED_LIBRARIES :=
 HOST_CROSS_DEPENDENCIES_ON_SHARED_LIBRARIES :=
+$(HOST_CROSS_2ND_ARCH_VAR_PREFIX)HOST_CROSS_DEPENDENCIES_ON_SHARED_LIBRARIES :=
 
 # Generated class file names for Android resource.
 # They are escaped and quoted so can be passed safely to a bash command.
@@ -2008,18 +2009,17 @@ endef
 
 define transform-jar-to-jack
 	$(hide) mkdir -p $(dir $@)
-	$(JILL) $(PRIVATE_JILL_FLAGS) --output $@.tmpjill.jack $<
 	$(hide) mkdir -p $@.tmpjill.res
 	$(hide) unzip -qo $< -d $@.tmpjill.res
 	$(hide) find $@.tmpjill.res -iname "*.class" -delete
 	$(hide) $(call call-jack) \
+	    $(PRIVATE_JACK_FLAGS) \
         -D jack.import.resource.policy=keep-first \
         -D jack.import.type.policy=keep-first \
-	    --import $@.tmpjill.jack \
+	    --import $< \
 	    --import-resource $@.tmpjill.res \
 	    --output-jack $@
 	$(hide) rm -rf $@.tmpjill.res
-	$(hide) rm $@.tmpjill.jack
 endef
 
 # Moves $1.tmp to $1 if necessary. This is designed to be used with
@@ -2283,11 +2283,23 @@ define add-carried-jack-resources
 fi
 endef
 
+# Returns the minSdkVersion of the specified APK as a decimal number. If the
+# version is a codename, returns the current platform SDK version (always a
+# decimal number) instead. If the APK does not specify a minSdkVersion, returns
+# 0 to match how the Android platform interprets this situation at runtime.
+#
+define get-package-min-sdk-version-int
+$$(($(AAPT) dump badging $(1) 2>&1 | grep '^sdkVersion' || echo "sdkVersion:'0'") \
+    | cut -d"'" -f2 | \
+    sed -e s/^$(PLATFORM_VERSION_CODENAME)$$/$(PLATFORM_SDK_VERSION)/)
+endef
+
 # Sign a package using the specified key/cert.
 #
 define sign-package
 $(hide) mv $@ $@.unsigned
 $(hide) java -Djava.library.path=$(SIGNAPK_JNI_LIBRARY_PATH) -jar $(SIGNAPK_JAR) \
+    --min-sdk-version $(call get-package-min-sdk-version-int,$@.unsigned) \
     $(PRIVATE_CERTIFICATE) $(PRIVATE_PRIVATE_KEY) \
     $(PRIVATE_ADDITIONAL_CERTIFICATES) $@.unsigned $@.signed
 $(hide) mv $@.signed $@
