@@ -304,6 +304,7 @@ $(noshrob_classes_jack): $(R_file_stamp)
 endif
 ifneq ($(full_classes_jack),)
 $(full_classes_jack): $(R_file_stamp)
+$(jack_check_timestamp): $(R_file_stamp)
 endif
 endif # LOCAL_JACK_ENABLED
 
@@ -497,7 +498,7 @@ $(built_apk_splits) : $(built_module_path)/%.apk : $(LOCAL_BUILT_MODULE)
 	$(sign-package)
 
 # Rules to install the splits
-$(installed_apk_splits) : $(my_module_path)/$(LOCAL_MODULE)_%.apk : $(built_module_path)/package_%.apk | $(ACP)
+$(installed_apk_splits) : $(my_module_path)/$(LOCAL_MODULE)_%.apk : $(built_module_path)/package_%.apk
 	@echo "Install: $@"
 	$(copy-file-to-new-target)
 

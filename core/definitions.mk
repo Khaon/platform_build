@@ -2000,6 +2000,38 @@ $(if $(PRIVATE_JAR_EXCLUDE_PACKAGES), $(hide) echo unsupported options JAR_EXCLU
 $(if $(PRIVATE_JAR_MANIFEST), $(hide) echo unsupported options JAR_MANIFEST in $@; exit 53)
 endef
 
+# Invoke Jack to compile java source just to check it compiles correctly.
+#
+# Some historical notes:
+# - below we write the list of java files to java-source-list to avoid argument
+#   list length problems with Cygwin
+# - we filter out duplicate java file names because Jack doesn't like them.
+define jack-check-java
+$(hide) rm -f $@
+$(hide) rm -f $@.java-source-list
+$(hide) rm -f $@.java-source-list-uniq
+$(hide) mkdir -p $(dir $@)
+$(if $(PRIVATE_JACK_INCREMENTAL_DIR),$(hide) mkdir -p $(PRIVATE_JACK_INCREMENTAL_DIR))
+$(call dump-words-to-file,$(PRIVATE_JAVA_SOURCES),$@.java-source-list)
+$(hide) if [ -d "$(PRIVATE_SOURCE_INTERMEDIATES_DIR)" ]; then \
+          find $(PRIVATE_SOURCE_INTERMEDIATES_DIR) -name '*.java' >> $@.java-source-list; \
+fi
+$(hide) tr ' ' '\n' < $@.java-source-list \
+    | sort -u > $@.java-source-list-uniq
+$(hide) if [ -s $@.java-source-list-uniq ] ; then \
+	$(call call-jack,$(PRIVATE_JACK_EXTRA_ARGS)) \
+	    $(strip $(PRIVATE_JACK_FLAGS)) \
+	    $(strip $(PRIVATE_JACK_DEBUG_FLAGS)) \
+	    $(addprefix --classpath ,$(strip \
+	        $(call normalize-path-list,$(call reverse-list,$(PRIVATE_STATIC_JACK_LIBRARIES)) $(PRIVATE_BOOTCLASSPATH_JAVA_LIBRARIES) $(PRIVATE_ALL_JACK_LIBRARIES)))) \
+	    -D jack.import.resource.policy=keep-first \
+	    -D jack.import.type.policy=keep-first \
+	    $(if $(PRIVATE_JACK_INCREMENTAL_DIR),--incremental-folder $(PRIVATE_JACK_INCREMENTAL_DIR)) \
+	    @$@.java-source-list-uniq; \
+fi
+touch $@
+endef
+
 define transform-jar-to-jack
 	$(hide) mkdir -p $(dir $@)
 	$(hide) mkdir -p $@.tmpjill.res
@@ -2363,7 +2395,7 @@ endef
 # $(1): source file
 # $(2): destination file
 define copy-one-file
-$(2): $(1) | $(ACP)
+$(2): $(1)
 	@echo "Copy: $$@"
 	$$(copy-file-to-target)
 endef
@@ -2384,7 +2416,7 @@ endef
 # $(1): source file
 # $(2): destination file, must end with .xml.
 define copy-xml-file-checked
-$(2): $(1) | $(ACP)
+$(2): $(1)
 	@echo "Copy xml: $$@"
 	$(hide) xmllint $$< >/dev/null  # Don't print the xml file to stdout.
 	$$(copy-file-to-target)
@@ -2399,13 +2431,15 @@ endef
 # Copy a single file from one place to another,
 # preserving permissions and overwriting any existing
 # file.
-# We disable the "-t" option for acp cannot handle
-# high resolution timestamp correctly on file systems like ext4.
-# Therefore copy-file-to-target is the same as copy-file-to-new-target.
+# When we used acp, it could not handle high resolution timestamps
+# on file systems like ext4. Because of that, '-t' option was disabled
+# and copy-file-to-target was identical to copy-file-to-new-target.
+# Keep the behavior until we audit and ensure that switching this back
+# won't break anything.
 define copy-file-to-target
 @mkdir -p $(dir $@)
 $(hide) rm -f $@
-$(hide) $(ACP) -p $< $@
+$(hide) cp $< $@
 endef
 
 # The same as copy-file-to-target, but use the local
@@ -2436,7 +2470,7 @@ endef
 define copy-file-to-new-target
 @mkdir -p $(dir $@)
 $(hide) rm -f $@
-$(hide) $(ACP) -p $< $@
+$(hide) cp $< $@
 endef
 
 # The same as copy-file-to-new-target, but use the local
@@ -2573,7 +2607,7 @@ define add-radio-file
 endef
 define add-radio-file-internal
 INSTALLED_RADIOIMAGE_TARGET += $$(PRODUCT_OUT)/$(2)
-$$(PRODUCT_OUT)/$(2) : $$(LOCAL_PATH)/$(1) | $$(ACP)
+$$(PRODUCT_OUT)/$(2) : $$(LOCAL_PATH)/$(1)
 	$$(transform-prebuilt-to-target)
 endef
 
@@ -2588,7 +2622,7 @@ endef
 define add-radio-file-checked-internal
 INSTALLED_RADIOIMAGE_TARGET += $$(PRODUCT_OUT)/$(2)
 BOARD_INFO_CHECK += $(3):$(LOCAL_PATH)/$(1)
-$$(PRODUCT_OUT)/$(2) : $$(LOCAL_PATH)/$(1) | $$(ACP)
+$$(PRODUCT_OUT)/$(2) : $$(LOCAL_PATH)/$(1)
 	$$(transform-prebuilt-to-target)
 endef
 
