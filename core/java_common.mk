@@ -46,6 +46,8 @@ $(proto_java_sources_file_stamp) : $(proto_sources_fullpath) $(PROTOC)
 	$(call transform-proto-to-java)
 
 #TODO: protoc should output the dependencies introduced by imports.
+
+ALL_MODULES.$(my_register_name).PROTO_FILES := $(proto_sources_fullpath)
 endif # proto_sources
 
 #########################################
@@ -173,14 +175,13 @@ ifeq ($(USE_CORE_LIB_BOOTCLASSPATH),true)
 ifeq ($(LOCAL_NO_STANDARD_LIBRARIES),true)
 my_bootclasspath := ""
 else
-my_bootclasspath := $(call java-lib-files,core-oj-hostdex,$(LOCAL_IS_HOST_MODULE)):$(call java-lib-files,core-libart-hostdex,$(LOCAL_IS_HOST_MODULE))
+my_bootclasspath := $(call normalize-path-list,$(call host-dex-java-lib-files,core-oj-hostdex core-libart-hostdex))
 endif
 $(LOCAL_INTERMEDIATE_TARGETS): PRIVATE_BOOTCLASSPATH := -bootclasspath $(my_bootclasspath)
 
-full_shared_java_libs := $(call java-lib-files,$(LOCAL_JAVA_LIBRARIES),$(LOCAL_IS_HOST_MODULE))
-full_java_lib_deps := $(call java-lib-deps,$(LOCAL_JAVA_LIBRARIES),$(LOCAL_IS_HOST_MODULE)) \
-    $(full_shared_java_libs)
-else
+full_shared_java_libs := $(call host-dex-java-lib-files,$(LOCAL_JAVA_LIBRARIES))
+full_java_lib_deps := $(full_shared_java_libs)
+else # !USE_CORE_LIB_BOOTCLASSPATH
 $(LOCAL_INTERMEDIATE_TARGETS): PRIVATE_BOOTCLASSPATH :=
 
 full_shared_java_libs := $(addprefix $(HOST_OUT_JAVA_LIBRARIES)/,\
@@ -263,6 +264,9 @@ $(LOCAL_INTERMEDIATE_TARGETS) : PRIVATE_MANIFEST_INSTRUMENTATION_FOR := $(LOCAL_
 
 ifdef aidl_sources
 ALL_MODULES.$(my_register_name).AIDL_FILES := $(aidl_sources)
+endif
+ifdef renderscript_sources
+ALL_MODULES.$(my_register_name).RS_FILES := $(renderscript_sources_fullpath)
 endif
 endif  # !LOCAL_IS_HOST_MODULE
 
