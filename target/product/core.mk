@@ -23,11 +23,11 @@
 PRODUCT_PACKAGES += \
     BasicDreams \
     BookmarkProvider \
-    Browser2 \
     Calendar \
     CalendarProvider \
     CaptivePortalLogin \
     CertInstaller \
+    ChromiumBrowser \
     Contacts \
     DeskClock \
     DocumentsUI \
