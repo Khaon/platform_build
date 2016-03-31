@@ -1152,7 +1152,7 @@ define transform-cpp-to-o
 @mkdir -p $(dir $@)
 $(hide) $(RELATIVE_PWD) $(PRIVATE_CXX) \
 	$(addprefix -I , $(PRIVATE_C_INCLUDES)) \
-	$(shell cat $(PRIVATE_IMPORT_INCLUDES)) \
+	$$(cat $(PRIVATE_IMPORT_INCLUDES)) \
 	$(addprefix -isystem ,\
 	    $(if $(PRIVATE_NO_DEFAULT_COMPILER_FLAGS),, \
 	        $(filter-out $(PRIVATE_C_INCLUDES), \
@@ -1184,7 +1184,7 @@ define transform-c-or-s-to-o-no-deps
 @mkdir -p $(dir $@)
 $(hide) $(RELATIVE_PWD) $(PRIVATE_CC) \
 	$(addprefix -I , $(PRIVATE_C_INCLUDES)) \
-	$(shell cat $(PRIVATE_IMPORT_INCLUDES)) \
+	$$(cat $(PRIVATE_IMPORT_INCLUDES)) \
 	$(addprefix -isystem ,\
 	    $(if $(PRIVATE_NO_DEFAULT_COMPILER_FLAGS),, \
 	        $(filter-out $(PRIVATE_C_INCLUDES), \
@@ -1259,7 +1259,7 @@ define transform-host-cpp-to-o
 @mkdir -p $(dir $@)
 $(hide) $(RELATIVE_PWD) $(PRIVATE_CXX) \
 	$(addprefix -I , $(PRIVATE_C_INCLUDES)) \
-	$(shell cat $(PRIVATE_IMPORT_INCLUDES)) \
+	$$(cat $(PRIVATE_IMPORT_INCLUDES)) \
 	$(addprefix -isystem ,\
 	    $(if $(PRIVATE_NO_DEFAULT_COMPILER_FLAGS),, \
 	        $(filter-out $(PRIVATE_C_INCLUDES), \
@@ -1289,7 +1289,7 @@ define transform-host-c-or-s-to-o-no-deps
 @mkdir -p $(dir $@)
 $(hide) $(RELATIVE_PWD) $(PRIVATE_CC) \
 	$(addprefix -I , $(PRIVATE_C_INCLUDES)) \
-	$(shell cat $(PRIVATE_IMPORT_INCLUDES)) \
+	$$(cat $(PRIVATE_IMPORT_INCLUDES)) \
 	$(addprefix -isystem ,\
 	    $(if $(PRIVATE_NO_DEFAULT_COMPILER_FLAGS),, \
 	        $(filter-out $(PRIVATE_C_INCLUDES), \
@@ -2043,9 +2043,8 @@ fi
 $(hide) tr ' ' '\n' < $@.java-source-list \
     | sort -u > $@.java-source-list-uniq
 $(hide) if [ -s $@.java-source-list-uniq ] ; then \
-	$(call call-jack,$(PRIVATE_JACK_EXTRA_ARGS)) \
+	$(call call-jack) \
 	    $(strip $(PRIVATE_JACK_FLAGS)) \
-	    $(strip $(PRIVATE_JACK_DEBUG_FLAGS)) \
 	    $(addprefix --classpath ,$(strip \
 	        $(call normalize-path-list,$(call reverse-list,$(PRIVATE_STATIC_JACK_LIBRARIES)) $(PRIVATE_BOOTCLASSPATH_JAVA_LIBRARIES) $(PRIVATE_ALL_JACK_LIBRARIES)))) \
 	    -D jack.import.resource.policy=keep-first \
@@ -2214,17 +2213,6 @@ define create-empty-package
 $(call create-empty-package-at,$@)
 endef
 
-# Copy an arhchive file and delete any class files and empty folders inside.
-# $(1): the source archive file.
-# $(2): the destination archive file.
-define initialize-package-file
-@mkdir -p $(dir $(2))
-$(hide) cp -f $(1) $(2)
-$(hide) zip -qd $(2) "*.class" \
-    $(if $(strip $(PRIVATE_DONT_DELETE_JAR_DIRS)),,"*/") \
-    || true # Ignore the error when nothing to delete.
-endef
-
 #TODO: we kinda want to build different asset packages for
 #      different configurations, then combine them later (or something).
 #      Per-locale, etc.
@@ -2370,19 +2358,6 @@ $(hide) if unzip -l $@ $(PRIVATE_EMBEDDED_JNI_LIBS) >/dev/null ; then \
   ( cd $(dir $@)uncompressedlibs && find lib -type f | sort | zip -D -X -0 ../$(notdir $@) -@ ) && \
   rm -rf $(dir $@)uncompressedlibs; \
   fi
-endef
-
-define install-dex-debug
-$(hide) if [ -f "$(PRIVATE_INTERMEDIATES_DIR)/classes.dex" ]; then \
-	    mkdir -p $(TOP)/dalvik/DEBUG-FILES; \
-	    $(ACP) $(PRIVATE_INTERMEDIATES_DIR)/classes.dex \
-		$(TOP)/dalvik/DEBUG-FILES/$(PRIVATE_MODULE).dex; \
-	fi
-$(hide) if [ -f "$(PRIVATE_INTERMEDIATES_DIR)/classes.lst" ]; then \
-	    mkdir -p $(TOP)/dalvik/DEBUG-FILES; \
-	    $(ACP) $(PRIVATE_INTERMEDIATES_DIR)/classes.lst \
-		$(TOP)/dalvik/DEBUG-FILES/$(PRIVATE_MODULE).lst; \
-	fi
 endef
 
 # TODO(joeo): If we can ever upgrade to post 3.81 make and get the
