@@ -70,10 +70,12 @@ LIBART_TARGET_BOOT_DEX_FILES := $(foreach jar,$(LIBART_TARGET_BOOT_JARS),$(call 
 my_2nd_arch_prefix :=
 include $(BUILD_SYSTEM)/dex_preopt_libart_boot.mk
 
+ifneq ($(TARGET_TRANSLATE_2ND_ARCH),true)
 ifdef TARGET_2ND_ARCH
 my_2nd_arch_prefix := $(TARGET_2ND_ARCH_VAR_PREFIX)
 include $(BUILD_SYSTEM)/dex_preopt_libart_boot.mk
 my_2nd_arch_prefix :=
+endif
 endif
 
 
@@ -98,5 +100,6 @@ $(hide) ANDROID_LOG_TAGS="*:e" $(DEX2OAT) \
 	--include-patch-information --runtime-arg -Xnorelocate --no-generate-debug-info \
 	--abort-on-hard-verifier-error \
 	--no-inline-from=core-oj.jar \
-	$(PRIVATE_DEX_PREOPT_FLAGS)
+	$(PRIVATE_DEX_PREOPT_FLAGS) \
+	$(GLOBAL_DEXPREOPT_FLAGS)
 endef

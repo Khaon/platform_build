@@ -131,6 +131,7 @@ ifdef LOCAL_SDK_VERSION
     my_system_shared_libraries += libstdc++
     ifeq (stlport_static,$(LOCAL_NDK_STL_VARIANT))
       my_ndk_stl_static_lib := $(my_ndk_source_root)/cxx-stl/stlport/libs/$(my_cpu_variant)/libstlport_static.a
+      my_ldlibs += -ldl
     else
       my_ndk_stl_shared_lib_fullpath := $(my_ndk_source_root)/cxx-stl/stlport/libs/$(my_cpu_variant)/libstlport_shared.so
       my_ndk_stl_shared_lib := -lstlport_shared
@@ -142,6 +143,7 @@ ifdef LOCAL_SDK_VERSION
                                $(my_ndk_source_root)/android/support/include
     ifeq (c++_static,$(LOCAL_NDK_STL_VARIANT))
       my_ndk_stl_static_lib := $(my_ndk_source_root)/cxx-stl/llvm-libc++/libs/$(my_cpu_variant)/libc++_static.a
+      my_ldlibs += -ldl
     else
       my_ndk_stl_shared_lib_fullpath := $(my_ndk_source_root)/cxx-stl/llvm-libc++/libs/$(my_cpu_variant)/libc++_shared.so
       my_ndk_stl_shared_lib := -lc++_shared
@@ -212,10 +214,15 @@ endif
 # clang is enabled by default for host builds
 # enable it unless we've specifically disabled clang above
 ifdef LOCAL_IS_HOST_MODULE
-    ifneq ($($(my_prefix)OS),windows)
-    ifeq ($(my_clang),)
-        my_clang := true
-    endif
+    ifeq ($($(my_prefix)OS),windows)
+        ifeq ($(my_clang),true)
+            $(error $(LOCAL_MODULE_MAKEFILE): $(LOCAL_MODULE): Clang is not yet supported for windows binaries)
+        endif
+        my_clang := false
+    else
+        ifeq ($(my_clang),)
+            my_clang := true
+        endif
     endif
 # Add option to make clang the default for device build
 else ifeq ($(USE_CLANG_PLATFORM_BUILD),true)
@@ -1375,7 +1382,7 @@ $(LOCAL_INTERMEDIATE_TARGETS): PRIVATE_LDLIBS := $(my_ldlibs)
 $(LOCAL_INTERMEDIATE_TARGETS): PRIVATE_ALL_SHARED_LIBRARIES := $(built_shared_libraries)
 $(LOCAL_INTERMEDIATE_TARGETS): PRIVATE_ALL_STATIC_LIBRARIES := $(built_static_libraries)
 $(LOCAL_INTERMEDIATE_TARGETS): PRIVATE_ALL_WHOLE_STATIC_LIBRARIES := $(built_whole_libraries)
-$(LOCAL_INTERMEDIATE_TARGETS): PRIVATE_ALL_OBJECTS := $(all_objects)
+$(LOCAL_INTERMEDIATE_TARGETS): PRIVATE_ALL_OBJECTS := $(strip $(all_objects))
 
 ###########################################################
 # Define library dependencies.

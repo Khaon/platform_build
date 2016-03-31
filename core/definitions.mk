@@ -55,10 +55,6 @@ ALL_MODULE_TAGS:=
 # its sub-variables.)
 ALL_MODULE_NAME_TAGS:=
 
-# Full paths to all prebuilt files that will be copied
-# (used to make the dependency on acp)
-ALL_PREBUILT:=
-
 # Full path to all files that are made by some tool
 ALL_GENERATED_SOURCES:=
 
@@ -1086,7 +1082,7 @@ endef
 define transform-logtags-to-java
 @mkdir -p $(dir $@)
 @echo "logtags: $@ <= $<"
-$(hide) $(JAVATAGS) -o $@ $^
+$(hide) $(JAVATAGS) -o $@ $< $(PRIVATE_MERGED_TAG)
 endef
 
 
@@ -1518,6 +1514,23 @@ $(foreach lib,$(wordlist 2,999,$(PRIVATE_ALL_WHOLE_STATIC_LIBRARIES)), \
     $(call _extract-and-include-single-host-whole-static-lib, $(lib)))
 endef
 
+ifeq ($(HOST_OS),darwin)
+# On Darwin the host ar fails if there is nothing to add to .a at all.
+# We work around by adding a dummy.o and then deleting it.
+define create-dummy.o-if-no-objs
+$(if $(PRIVATE_ALL_OBJECTS),,$(hide) touch $(dir $@)dummy.o)
+endef
+
+define get-dummy.o-if-no-objs
+$(if $(PRIVATE_ALL_OBJECTS),,$(dir $@)dummy.o)
+endef
+
+define delete-dummy.o-if-no-objs
+$(if $(PRIVATE_ALL_OBJECTS),,$(hide) $($(PRIVATE_2ND_ARCH_VAR_PREFIX)$(PRIVATE_PREFIX)AR) d $@ $(dir $@)dummy.o \
+  && rm -f $(dir $@)dummy.o)
+endef
+endif  # HOST_OS is darwin
+
 # Explicitly delete the archive first so that ar doesn't
 # try to add to an existing archive.
 define transform-host-o-to-static-lib
@@ -1525,9 +1538,11 @@ define transform-host-o-to-static-lib
 @mkdir -p $(dir $@)
 @rm -f $@
 $(extract-and-include-host-whole-static-libs)
+$(create-dummy.o-if-no-objs)
 $(call split-long-arguments,$($(PRIVATE_2ND_ARCH_VAR_PREFIX)$(PRIVATE_PREFIX)AR) \
     $($(PRIVATE_2ND_ARCH_VAR_PREFIX)$(PRIVATE_PREFIX)GLOBAL_ARFLAGS) \
-    $(PRIVATE_ARFLAGS) $@,$(PRIVATE_ALL_OBJECTS))
+    $(PRIVATE_ARFLAGS) $@,$(PRIVATE_ALL_OBJECTS) $(get-dummy.o-if-no-objs))
+$(delete-dummy.o-if-no-objs)
 endef
 
 
@@ -1930,7 +1945,6 @@ $(if $(PRIVATE_JAR_PACKAGES), \
 $(if $(PRIVATE_JAR_EXCLUDE_PACKAGES), $(hide) rm -rf \
     $(foreach pkg, $(PRIVATE_JAR_EXCLUDE_PACKAGES), \
         $(PRIVATE_CLASS_INTERMEDIATES_DIR)/$(subst .,/,$(pkg))))
-$(if $(PRIVATE_RMTYPEDEFS), $(hide) $(RMTYPEDEFS) -v $(PRIVATE_CLASS_INTERMEDIATES_DIR))
 $(if $(PRIVATE_JAR_MANIFEST), \
     $(hide) sed -e "s/%BUILD_NUMBER%/$(BUILD_NUMBER_FROM_FILE)/" \
             $(PRIVATE_JAR_MANIFEST) > $(dir $@)/manifest.mf && \
@@ -2268,8 +2282,12 @@ $(hide) rm -rf $(dir $@)lib
 endef
 
 #TODO: update the manifest to point to the dex file
-define add-dex-to-package
-$(hide) find $(dir $(PRIVATE_DEX_FILE)) -maxdepth 1 -name "classes*.dex" | sort | xargs zip -0qjX $@
+$(call add-dex-to-package-arg,$@)
+endef
+
+# $(1): the package file.
+define add-dex-to-package-arg
+$(hide) find $(dir $(PRIVATE_DEX_FILE)) -maxdepth 1 -name "classes*.dex" | sort | xargs zip -0qjX $(1)
 endef
 
 # Add java resources added by the current module.
@@ -2308,12 +2326,17 @@ endef
 # Sign a package using the specified key/cert.
 #
 define sign-package
-$(hide) mv $@ $@.unsigned
+$(call sign-package-arg,$@)
+endef
+
+# $(1): the package file we are signing.
+define sign-package-arg
+$(hide) mv $(1) $(1).unsigned
 $(hide) java -Djava.library.path=$(SIGNAPK_JNI_LIBRARY_PATH) -jar $(SIGNAPK_JAR) \
     --min-sdk-version $(call get-package-min-sdk-version-int,$@.unsigned) \
     $(PRIVATE_CERTIFICATE) $(PRIVATE_PRIVATE_KEY) \
-    $(PRIVATE_ADDITIONAL_CERTIFICATES) $@.unsigned $@.signed
-$(hide) mv $@.signed $@
+    $(PRIVATE_ADDITIONAL_CERTIFICATES) $(1).unsigned $(1).signed
+$(hide) mv $(1).signed $(1)
 endef
 
 # Align STORED entries of a package on 4-byte boundaries to make them easier to mmap.

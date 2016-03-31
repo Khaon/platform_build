@@ -188,7 +188,10 @@ ifeq (true,$(LOCAL_EMMA_INSTRUMENT))
 ifeq (true,$(EMMA_INSTRUMENT_STATIC))
 ifdef LOCAL_JACK_ENABLED
 # Jack supports coverage with Jacoco
+ifneq ($(LOCAL_SRC_FILES)$(LOCAL_STATIC_JAVA_LIBRARIES)$(LOCAL_SOURCE_FILES_ALL_GENERATED),)
+# Only add jacocoagent if the package contains some java code
 LOCAL_STATIC_JAVA_LIBRARIES += jacocoagent
+endif # Contains java code
 else
 LOCAL_STATIC_JAVA_LIBRARIES += emma
 endif # LOCAL_JACK_ENABLED
@@ -198,7 +201,10 @@ ifdef TARGET_BUILD_APPS
 # In unbundled build merge the emma library into the apk.
 ifdef LOCAL_JACK_ENABLED
 # Jack supports coverage with Jacoco
+ifneq ($(LOCAL_SRC_FILES)$(LOCAL_STATIC_JAVA_LIBRARIES)$(LOCAL_SOURCE_FILES_ALL_GENERATED),)
+# Only add jacocoagent if the package contains some java code
 LOCAL_STATIC_JAVA_LIBRARIES += jacocoagent
+endif # Contains java code
 else
 LOCAL_STATIC_JAVA_LIBRARIES += emma
 endif # LOCAL_JACK_ENABLED
@@ -438,13 +444,17 @@ endif
 ifeq ($(full_classes_jar),)
 # We don't build jar, need to add the Java resources here.
 	$(if $(PRIVATE_EXTRA_JAR_ARGS),$(call add-java-resources-to,$@))
-else
+else  # full_classes_jar
 	$(add-dex-to-package)
-endif
+endif  # full_classes_jar
 ifdef LOCAL_JACK_ENABLED
 	$(add-carried-jack-resources)
 endif
 ifdef LOCAL_DEX_PREOPT
+ifneq ($(BUILD_PLATFORM_ZIP),)
+	@# Keep a copy of apk with classes.dex unstripped
+	$(hide) cp -f $@ $(dir $@)package.dex.apk
+endif  # BUILD_PLATFORM_ZIP
 ifneq (nostripping,$(LOCAL_DEX_PREOPT))
 	$(call dexpreopt-remove-classes.dex,$@)
 endif

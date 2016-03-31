@@ -106,11 +106,6 @@ $(shell mkdir -p $(OUT_DIR) && touch $(OUT_DIR)/ninja_build)
 include build/core/ninja.mk
 else # KATI
 
-# With these files findleaves.py won't be unnecessarily slower even if
-# there is a user creates a copy of $(OUT_DIR).
-$(shell echo '# This file prevents findleaves.py from traversing this directory further' > $(OUT_DIR)/Android.mk)
-$(shell echo '# This file prevents findleaves.py from traversing this directory further' > $(OUT_DIR)/CleanSpec.mk)
-
 # Write the build number to a file so it can be read back in
 # without changing the command line every time.  Avoids rebuilds
 # when using ninja.
@@ -544,6 +539,11 @@ endif
 
 $(foreach mk, $(subdir_makefiles),$(info including $(mk) ...)$(eval include $(mk)))
 
+ifdef PDK_FUSION_PLATFORM_ZIP
+# Bring in the PDK platform.zip modules.
+include $(BUILD_SYSTEM)/pdk_fusion_modules.mk
+endif # PDK_FUSION_PLATFORM_ZIP
+
 endif # dont_bother
 
 endif # ONE_SHOT_MAKEFILE
@@ -553,22 +553,6 @@ include $(BUILD_SYSTEM)/post_clean.mk
 
 ifeq ($(stash_product_vars),true)
   $(call assert-product-vars, __STASHED)
-endif
-
-include $(BUILD_SYSTEM)/legacy_prebuilts.mk
-ifneq ($(filter-out $(GRANDFATHERED_ALL_PREBUILT),$(strip $(notdir $(ALL_PREBUILT)))),)
-  $(warning *** Some files have been added to ALL_PREBUILT.)
-  $(warning *)
-  $(warning * ALL_PREBUILT is a deprecated mechanism that)
-  $(warning * should not be used for new files.)
-  $(warning * As an alternative, use PRODUCT_COPY_FILES in)
-  $(warning * the appropriate product definition.)
-  $(warning * build/target/product/core.mk is the product)
-  $(warning * definition used in all products.)
-  $(warning *)
-  $(foreach bad_prebuilt,$(filter-out $(GRANDFATHERED_ALL_PREBUILT),$(strip $(notdir $(ALL_PREBUILT)))),$(warning * unexpected $(bad_prebuilt) in ALL_PREBUILT))
-  $(warning *)
-  $(error ALL_PREBUILT contains unexpected files)
 endif
 
 # -------------------------------------------------------------------
@@ -598,19 +582,33 @@ CUSTOM_MODULES := \
 #
 # Resolve the required module name to 32-bit or 64-bit variant.
 # Get a list of corresponding 32-bit module names, if one exists.
+ifneq ($(TARGET_TRANSLATE_2ND_ARCH),true)
 define get-32-bit-modules
-$(strip $(foreach m,$(1),\
+$(sort $(foreach m,$(1),\
   $(if $(ALL_MODULES.$(m)$(TARGET_2ND_ARCH_MODULE_SUFFIX).CLASS),\
-    $(m)$(TARGET_2ND_ARCH_MODULE_SUFFIX))))
+    $(m)$(TARGET_2ND_ARCH_MODULE_SUFFIX))\
+  $(if $(ALL_MODULES.$(m)$(HOST_2ND_ARCH_MODULE_SUFFIX).CLASS),\
+    $(m)$(HOST_2ND_ARCH_MODULE_SUFFIX))\
+    ))
 endef
 # Get a list of corresponding 32-bit module names, if one exists;
 # otherwise return the original module name
 define get-32-bit-modules-if-we-can
-$(strip $(foreach m,$(1),\
-  $(if $(ALL_MODULES.$(m)$(TARGET_2ND_ARCH_MODULE_SUFFIX).CLASS),\
-    $(m)$(TARGET_2ND_ARCH_MODULE_SUFFIX),
-    $(m))))
+$(sort $(foreach m,$(1),\
+  $(if $(ALL_MODULES.$(m)$(TARGET_2ND_ARCH_MODULE_SUFFIX).CLASS)$(ALL_MODULES.$(m)$(HOST_2ND_ARCH_MODULE_SUFFIX).CLASS),\
+    $(if $(ALL_MODULES.$(m)$(TARGET_2ND_ARCH_MODULE_SUFFIX).CLASS),$(m)$(TARGET_2ND_ARCH_MODULE_SUFFIX)) \
+    $(if $(ALL_MODULES.$(m)$(HOST_2ND_ARCH_MODULE_SUFFIX).CLASS),$(m)$(HOST_2ND_ARCH_MODULE_SUFFIX)),\
+  $(m))))
 endef
+else  # TARGET_TRANSLATE_2ND_ARCH
+# For binary translation config, by default only install the first arch.
+define get-32-bit-modules
+endef
+
+define get-32-bit-modules-if-we-can
+$(strip $(1))
+endef
+endif  # TARGET_TRANSLATE_2ND_ARCH
 
 # If a module is for a cross host os, the required modules must be for
 # that OS too.
@@ -787,7 +785,7 @@ overridden_packages := $(call get-package-overrides,$(modules_to_install))
 ifdef overridden_packages
 #  old_modules_to_install := $(modules_to_install)
   modules_to_install := \
-      $(filter-out $(foreach p,$(overridden_packages),$(p) %/$(p).apk), \
+      $(filter-out $(foreach p,$(overridden_packages),$(p) %/$(p).apk %/$(p).odex), \
           $(modules_to_install))
 endif
 #$(error filtered out
@@ -861,9 +859,6 @@ modules_to_check := $(sort $(modules_to_check))
 # This is used to to get the ordering right, you can also use these,
 # but they're considered undocumented, so don't complain if their
 # behavior changes.
-.PHONY: prebuilt
-prebuilt: $(ALL_PREBUILT)
-
 # An internal target that depends on all copied headers
 # (see copy_headers.make).  Other targets that need the
 # headers to be copied first can depend on this target.
@@ -874,9 +869,8 @@ $(ALL_C_CPP_ETC_OBJECTS): | all_copied_headers
 
 # All the droid stuff, in directories
 .PHONY: files
-files: prebuilt \
-        $(modules_to_install) \
-        $(INSTALLED_ANDROID_INFO_TXT_TARGET)
+files: $(modules_to_install) \
+       $(INSTALLED_ANDROID_INFO_TXT_TARGET)
 
 # -------------------------------------------------------------------
 
@@ -1061,6 +1055,9 @@ target-java-tests : java-target-tests
 target-native-tests : native-target-tests
 tests : host-tests target-tests
 
+# Phony target to run all java compilations that use javac instead of jack.
+.PHONY: javac-check
+
 # To catch more build breakage, check build tests modules in eng and userdebug builds.
 ifneq ($(ANDROID_NO_TEST_CHECK),true)
 ifneq ($(TARGET_BUILD_PDK),true)
@@ -1079,7 +1076,7 @@ sample_APKS_COLLECTION := \
 $(foreach module,$(sample_MODULES),$(eval $(call \
         copy-one-file,$(module),$(sample_APKS_DEST_PATH)/$(notdir $(module)))))
 sample_ADDITIONAL_INSTALLED := \
-        $(filter-out $(modules_to_install) $(modules_to_check) $(ALL_PREBUILT),$(sample_MODULES))
+        $(filter-out $(modules_to_install) $(modules_to_check),$(sample_MODULES))
 samplecode: $(sample_APKS_COLLECTION)
 	@echo "Collect sample code apks: $^"
 	# remove apks that are not intended to be installed.

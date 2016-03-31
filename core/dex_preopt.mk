@@ -19,6 +19,12 @@ DEXPREOPT_BOOT_JAR_DIR_FULL_PATH := $(DEXPREOPT_PRODUCT_DIR_FULL_PATH)/$(DEXPREO
 # The default value for LOCAL_DEX_PREOPT
 DEX_PREOPT_DEFAULT ?= true
 
+GLOBAL_DEXPREOPT_FLAGS :=
+ifeq ($(WITH_DEXPREOPT_PIC),true)
+# Compile boot.oat as position-independent code if WITH_DEXPREOPT_PIC=true
+GLOBAL_DEXPREOPT_FLAGS += --compile-pic
+endif
+
 # $(1): the .jar or .apk to remove classes.dex
 define dexpreopt-remove-classes.dex
 $(hide) zip --quiet --delete $(1) classes.dex; \
