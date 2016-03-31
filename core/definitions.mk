@@ -2282,6 +2282,7 @@ $(hide) rm -rf $(dir $@)lib
 endef
 
 #TODO: update the manifest to point to the dex file
+define add-dex-to-package
 $(call add-dex-to-package-arg,$@)
 endef
 
