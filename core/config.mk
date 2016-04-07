@@ -500,6 +500,7 @@ LEX := prebuilts/misc/$(BUILD_OS)-$(HOST_PREBUILT_ARCH)/flex/flex-2.5.39
 BISON_PKGDATADIR := $(PWD)/external/bison/data
 BISON := prebuilts/misc/$(BUILD_OS)-$(HOST_PREBUILT_ARCH)/bison/bison
 YACC := $(BISON) -d
+BISON_DATA := $(wildcard external/bison/data/* external/bison/data/*/*)
 
 YASM := prebuilts/misc/$(BUILD_OS)-$(HOST_PREBUILT_ARCH)/yasm/yasm
 
@@ -512,6 +513,10 @@ else
 BREAKPAD_GENERATE_SYMBOLS := false
 endif
 PROTOC := $(HOST_OUT_EXECUTABLES)/aprotoc$(HOST_EXECUTABLE_SUFFIX)
+NANOPB_SRCS := external/nanopb-c/generator/protoc-gen-nanopb \
+    $(wildcard external/nanopb-c/generator/*.py \
+               external/nanopb-c/generator/google/*.py \
+               external/nanopb-c/generator/proto/*.py)
 DBUS_GENERATOR := $(HOST_OUT_EXECUTABLES)/dbus-binding-generator
 MKBOOTFS := $(HOST_OUT_EXECUTABLES)/mkbootfs$(HOST_EXECUTABLE_SUFFIX)
 MINIGZIP := $(HOST_OUT_EXECUTABLES)/minigzip$(HOST_EXECUTABLE_SUFFIX)
