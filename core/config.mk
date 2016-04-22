@@ -187,8 +187,8 @@ FIND_LEAVES_EXCLUDES := $(addprefix --prune=, $(OUT_DIR) $(SCAN_EXCLUDE_DIRS) .r
 #     etc.
 #
 # NOTE: These directories MUST contain post-processed headers using the
-# bionic/libc/kernel/clean_header.py tool. Additionally, the original kernel
-# headers must also be checked in, but in a different subdirectory. By
+# bionic/libc/kernel/tools/clean_header.py tool. Additionally, the original
+# kernel headers must also be checked in, but in a different subdirectory. By
 # convention, the originals should be checked into original-kernel-headers
 # directory of the same parent dir. For example,
 #     device/samsung/tuna/kernel-headers            <----- post-processed
@@ -347,6 +347,20 @@ endif
 
 # define clang/llvm versions and base directory.
 include $(BUILD_SYSTEM)/clang/versions.mk
+
+# Unset WITH_TIDY_ONLY if global WITH_TIDY_ONLY is not true nor 1.
+ifeq (,$(filter 1 true,$(WITH_TIDY_ONLY)))
+  WITH_TIDY_ONLY :=
+endif
+
+PATH_TO_CLANG_TIDY := \
+    $(LLVM_PREBUILTS_BASE)/$(BUILD_OS)-x86/$(LLVM_PREBUILTS_VERSION)/bin/clang-tidy
+ifeq ($(wildcard $(PATH_TO_CLANG_TIDY)),)
+  ifneq (,$(filter 1 true,$(WITH_TIDY)))
+    $(warning *** Disable WITH_TIDY because $(PATH_TO_CLANG_TIDY) does not exist)
+  endif
+  PATH_TO_CLANG_TIDY :=
+endif
 
 # Disable WITH_STATIC_ANALYZER and WITH_SYNTAX_CHECK if tool can't be found
 SYNTAX_TOOLS_PREFIX := \

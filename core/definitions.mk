@@ -700,12 +700,6 @@ define jack-lib-files
 $(foreach lib,$(1),$(call _jack-lib-full-classes,$(lib),$(2)))
 endef
 
-# $(1): library name list
-# $(2): Non-empty if IS_HOST_MODULE
-define jack-lib-deps
-$(call jack-lib-files,$(1),$(2))
-endef
-
 ###########################################################
 ## Run rot13 on a string
 ## $(1): the string.  Must be one line.
@@ -1147,10 +1141,7 @@ endef
 ## Commands for running gcc to compile a C++ file
 ###########################################################
 
-define transform-cpp-to-o
-@echo "target $(PRIVATE_ARM_MODE) C++: $(PRIVATE_MODULE) <= $<"
-@mkdir -p $(dir $@)
-$(hide) $(RELATIVE_PWD) $(PRIVATE_CXX) \
+define transform-cpp-to-o-compiler-args
 	$(addprefix -I , $(PRIVATE_C_INCLUDES)) \
 	$$(cat $(PRIVATE_IMPORT_INCLUDES)) \
 	$(addprefix -isystem ,\
@@ -1169,10 +1160,32 @@ $(hide) $(RELATIVE_PWD) $(PRIVATE_CXX) \
 	$(PRIVATE_CPPFLAGS) \
 	$(PRIVATE_DEBUG_CFLAGS) \
 	$(PRIVATE_CFLAGS_NO_OVERRIDE) \
-	$(PRIVATE_CPPFLAGS_NO_OVERRIDE) \
-	-MD -MF $(patsubst %.o,%.d,$@) -o $@ $<
-$(transform-d-to-p)
+	$(PRIVATE_CPPFLAGS_NO_OVERRIDE)
 endef
+
+define clang-tidy-cpp
+$(hide) $(PATH_TO_CLANG_TIDY) $(PRIVATE_TIDY_FLAGS) \
+  -checks=$(PRIVATE_TIDY_CHECKS) \
+  $< -- $(transform-cpp-to-o-compiler-args)
+endef
+
+ifneq (,$(filter 1 true,$(WITH_TIDY_ONLY)))
+define transform-cpp-to-o
+$(if $(PRIVATE_TIDY_CHECKS),
+  @echo "target tidy $(PRIVATE_ARM_MODE) C++: $<"
+  $(clang-tidy-cpp))
+endef
+else
+define transform-cpp-to-o
+@echo "target $(PRIVATE_ARM_MODE) C++: $(PRIVATE_MODULE) <= $<"
+@mkdir -p $(dir $@)
+$(if $(PRIVATE_TIDY_CHECKS),$(clang-tidy-cpp))
+$(hide) $(RELATIVE_PWD) $(PRIVATE_CXX) \
+  $(transform-cpp-to-o-compiler-args) \
+  -MD -MF $(patsubst %.o,%.d,$@) -o $@ $<
+$(hide) $(transform-d-to-p)
+endef
+endif
 
 
 ###########################################################
@@ -1180,9 +1193,7 @@ endef
 ###########################################################
 
 # $(1): extra flags
-define transform-c-or-s-to-o-no-deps
-@mkdir -p $(dir $@)
-$(hide) $(RELATIVE_PWD) $(PRIVATE_CC) \
+define transform-c-or-s-to-o-compiler-args
 	$(addprefix -I , $(PRIVATE_C_INCLUDES)) \
 	$$(cat $(PRIVATE_IMPORT_INCLUDES)) \
 	$(addprefix -isystem ,\
@@ -1196,27 +1207,47 @@ $(hide) $(RELATIVE_PWD) $(PRIVATE_CC) \
 	    $(PRIVATE_TARGET_GLOBAL_CONLYFLAGS) \
 	    $(PRIVATE_ARM_CFLAGS) \
 	 ) \
-	 $(1) \
-	-MD -MF $(patsubst %.o,%.d,$@) -o $@ $<
+	 $(1)
 endef
 
-define transform-c-to-o-no-deps
-@echo "target $(PRIVATE_ARM_MODE) C: $(PRIVATE_MODULE) <= $<"
-$(call transform-c-or-s-to-o-no-deps, \
-    $(PRIVATE_CFLAGS) \
-    $(PRIVATE_CONLYFLAGS) \
-    $(PRIVATE_DEBUG_CFLAGS) \
-    $(PRIVATE_CFLAGS_NO_OVERRIDE))
+define transform-c-to-o-compiler-args
+$(call transform-c-or-s-to-o-compiler-args, \
+  $(PRIVATE_CFLAGS) \
+  $(PRIVATE_CONLYFLAGS) \
+  $(PRIVATE_DEBUG_CFLAGS) \
+  $(PRIVATE_CFLAGS_NO_OVERRIDE))
 endef
+
+define clang-tidy-c
+$(hide) $(PATH_TO_CLANG_TIDY) $(PRIVATE_TIDY_FLAGS) \
+  -checks=$(PRIVATE_TIDY_CHECKS) \
+  $< -- $(transform-c-to-o-compiler-args)
+endef
+
+ifneq (,$(filter 1 true,$(WITH_TIDY_ONLY)))
+define transform-c-to-o
+$(if $(PRIVATE_TIDY_CHECKS),
+  @echo "target tidy $(PRIVATE_ARM_MODE) C: $<"
+  $(clang-tidy-c))
+endef
+else
+define transform-c-to-o
+@echo "target $(PRIVATE_ARM_MODE) C: $(PRIVATE_MODULE) <= $<"
+@mkdir -p $(dir $@)
+$(if $(PRIVATE_TIDY_CHECKS),$(clang-tidy-c))
+$(hide) $(RELATIVE_PWD) $(PRIVATE_CC) \
+  $(transform-c-to-o-compiler-args) \
+  -MD -MF $(patsubst %.o,%.d,$@) -o $@ $<
+$(hide) $(transform-d-to-p)
+endef
+endif
 
 define transform-s-to-o-no-deps
 @echo "target asm: $(PRIVATE_MODULE) <= $<"
-$(call transform-c-or-s-to-o-no-deps, $(PRIVATE_ASFLAGS))
-endef
-
-define transform-c-to-o
-$(transform-c-to-o-no-deps)
-$(transform-d-to-p)
+@mkdir -p $(dir $@)
+$(RELATIVE_PWD) $(PRIVATE_CC) \
+  $(call transform-c-or-s-to-o-compiler-args, $(PRIVATE_ASFLAGS)) \
+  -MD -MF $(patsubst %.o,%.d,$@) -o $@ $<
 endef
 
 define transform-s-to-o
@@ -1254,10 +1285,7 @@ endef
 ## Commands for running gcc to compile a host C++ file
 ###########################################################
 
-define transform-host-cpp-to-o
-@echo "$($(PRIVATE_PREFIX)DISPLAY) C++: $(PRIVATE_MODULE) <= $<"
-@mkdir -p $(dir $@)
-$(hide) $(RELATIVE_PWD) $(PRIVATE_CXX) \
+define transform-host-cpp-to-o-compiler-args
 	$(addprefix -I , $(PRIVATE_C_INCLUDES)) \
 	$$(cat $(PRIVATE_IMPORT_INCLUDES)) \
 	$(addprefix -isystem ,\
@@ -1274,20 +1302,39 @@ $(hide) $(RELATIVE_PWD) $(PRIVATE_CXX) \
 	$(PRIVATE_CPPFLAGS) \
 	$(PRIVATE_DEBUG_CFLAGS) \
 	$(PRIVATE_CFLAGS_NO_OVERRIDE) \
-	$(PRIVATE_CPPFLAGS_NO_OVERRIDE) \
-	-MD -MF $(patsubst %.o,%.d,$@) -o $@ $<
-$(transform-d-to-p)
+	$(PRIVATE_CPPFLAGS_NO_OVERRIDE)
 endef
+
+define clang-tidy-host-cpp
+$(hide) $(PATH_TO_CLANG_TIDY) $(PRIVATE_TIDY_FLAGS) \
+  -checks=$(PRIVATE_TIDY_CHECKS) \
+  $< -- $(transform-host-cpp-to-o-compiler-args)
+endef
+
+ifneq (,$(filter 1 true,$(WITH_TIDY_ONLY)))
+define transform-host-cpp-to-o
+$(if $(PRIVATE_TIDY_CHECKS),
+  @echo "tidy $($(PRIVATE_PREFIX)DISPLAY) C++: $<"
+  $(clang-tidy-host-cpp))
+endef
+else
+define transform-host-cpp-to-o
+@echo "$($(PRIVATE_PREFIX)DISPLAY) C++: $(PRIVATE_MODULE) <= $<"
+@mkdir -p $(dir $@)
+$(if $(PRIVATE_TIDY_CHECKS),$(clang-tidy-host-cpp))
+$(hide) $(RELATIVE_PWD) $(PRIVATE_CXX) \
+  $(transform-host-cpp-to-o-compiler-args) \
+  -MD -MF $(patsubst %.o,%.d,$@) -o $@ $<
+$(hide) $(transform-d-to-p)
+endef
+endif
 
 
 ###########################################################
 ## Commands for running gcc to compile a host C file
 ###########################################################
 
-# $(1): extra flags
-define transform-host-c-or-s-to-o-no-deps
-@mkdir -p $(dir $@)
-$(hide) $(RELATIVE_PWD) $(PRIVATE_CC) \
+define transform-host-c-or-s-to-o-common-args
 	$(addprefix -I , $(PRIVATE_C_INCLUDES)) \
 	$$(cat $(PRIVATE_IMPORT_INCLUDES)) \
 	$(addprefix -isystem ,\
@@ -1299,24 +1346,51 @@ $(hide) $(RELATIVE_PWD) $(PRIVATE_CC) \
 	$(if $(PRIVATE_NO_DEFAULT_COMPILER_FLAGS),, \
 	    $(PRIVATE_HOST_GLOBAL_CFLAGS) \
 	    $(PRIVATE_HOST_GLOBAL_CONLYFLAGS) \
-	 ) \
-	$(1) \
-	-MD -MF $(patsubst %.o,%.d,$@) -o $@ $<
+	 )
 endef
 
-define transform-host-c-to-o-no-deps
-@echo "$($(PRIVATE_PREFIX)DISPLAY) C: $(PRIVATE_MODULE) <= $<"
-$(call transform-host-c-or-s-to-o-no-deps, $(PRIVATE_CFLAGS) $(PRIVATE_CONLYFLAGS) $(PRIVATE_DEBUG_CFLAGS) $(PRIVATE_CFLAGS_NO_OVERRIDE))
+# $(1): extra flags
+define transform-host-c-or-s-to-o-no-deps
+@mkdir -p $(dir $@)
+$(hide) $(RELATIVE_PWD) $(PRIVATE_CC) \
+  $(transform-host-c-or-s-to-o-common-args) \
+  $(1) \
+  -MD -MF $(patsubst %.o,%.d,$@) -o $@ $<
 endef
+
+define transform-host-c-to-o-compiler-args
+  $(transform-host-c-or-s-to-o-common-args) \
+  $(PRIVATE_CFLAGS) $(PRIVATE_CONLYFLAGS) \
+  $(PRIVATE_DEBUG_CFLAGS) $(PRIVATE_CFLAGS_NO_OVERRIDE)
+endef
+
+define clang-tidy-host-c
+$(hide) $(PATH_TO_CLANG_TIDY) $(PRIVATE_TIDY_FLAGS) \
+  -checks=$(PRIVATE_TIDY_CHECKS) \
+  $< -- $(transform-host-c-to-o-compiler-args)
+endef
+
+ifneq (,$(filter 1 true,$(WITH_TIDY_ONLY)))
+define transform-host-c-to-o
+$(if $(PRIVATE_TIDY_CHECKS),
+  @echo "tidy $($(PRIVATE_PREFIX)DISPLAY) C: $<"
+  $(clang-tidy-host-c))
+endef
+else
+define transform-host-c-to-o
+@echo "$($(PRIVATE_PREFIX)DISPLAY) C: $(PRIVATE_MODULE) <= $<"
+@mkdir -p $(dir $@)
+$(if $(PRIVATE_TIDY_CHECKS), $(clang-tidy-host-c))
+$(hide) $(RELATIVE_PWD) $(PRIVATE_CC) \
+  $(transform-host-c-to-o-compiler-args) \
+  -MD -MF $(patsubst %.o,%.d,$@) -o $@ $<
+$(hide) $(transform-d-to-p)
+endef
+endif
 
 define transform-host-s-to-o-no-deps
 @echo "$($(PRIVATE_PREFIX)DISPLAY) asm: $(PRIVATE_MODULE) <= $<"
 $(call transform-host-c-or-s-to-o-no-deps, $(PRIVATE_ASFLAGS))
-endef
-
-define transform-host-c-to-o
-$(transform-host-c-to-o-no-deps)
-$(transform-d-to-p)
 endef
 
 define transform-host-s-to-o
@@ -2019,7 +2093,7 @@ $(call call-jack) \
     $(if $(PRIVATE_RMTYPEDEFS), \
         -D jack.android.remove-typedef="true") \
     $(addprefix --classpath ,$(strip \
-        $(call normalize-path-list,$(PRIVATE_BOOTCLASSPATH_JAVA_LIBRARIES) $(PRIVATE_ALL_JACK_LIBRARIES)))) \
+        $(call normalize-path-list,$(PRIVATE_JACK_SHARED_LIBRARIES)))) \
     $(addprefix --import ,$(call reverse-list,$(PRIVATE_STATIC_JACK_LIBRARIES))) \
     $(if $(PRIVATE_EXTRA_JAR_ARGS),--import-resource $@.res.tmp) \
     -D jack.android.min-api-level=$(PRIVATE_JACK_MIN_SDK_VERSION) \
@@ -2063,7 +2137,7 @@ $(hide) if [ -s $@.java-source-list-uniq ] ; then \
 	$(call call-jack) \
 	    $(strip $(PRIVATE_JACK_FLAGS)) \
 	    $(addprefix --classpath ,$(strip \
-	        $(call normalize-path-list,$(call reverse-list,$(PRIVATE_STATIC_JACK_LIBRARIES)) $(PRIVATE_BOOTCLASSPATH_JAVA_LIBRARIES) $(PRIVATE_ALL_JACK_LIBRARIES)))) \
+	        $(call normalize-path-list,$(call reverse-list,$(PRIVATE_STATIC_JACK_LIBRARIES)) $(PRIVATE_JACK_SHARED_LIBRARIES)))) \
 	    -D jack.import.resource.policy=keep-first \
 	    -D jack.android.min-api-level=$(PRIVATE_JACK_MIN_SDK_VERSION) \
 	    -D jack.import.type.policy=keep-first \
@@ -2185,7 +2259,7 @@ $(call call-jack) \
     $(if $(NO_OPTIMIZE_DX), \
         -D jack.dex.optimize="false") \
     $(addprefix --classpath ,$(strip \
-        $(call normalize-path-list,$(PRIVATE_BOOTCLASSPATH_JAVA_LIBRARIES) $(PRIVATE_ALL_JACK_LIBRARIES)))) \
+        $(call normalize-path-list,$(PRIVATE_JACK_SHARED_LIBRARIES)))) \
     $(addprefix --import ,$(call reverse-list,$(PRIVATE_STATIC_JACK_LIBRARIES))) \
     $(if $(PRIVATE_EXTRA_JAR_ARGS),--import-resource $@.res.tmp) \
     -D jack.import.resource.policy=keep-first \
