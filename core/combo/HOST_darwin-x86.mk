@@ -17,49 +17,11 @@
 # Configuration for Darwin (Mac OS X) on x86.
 # Included by combo/select.mk
 
-$(combo_2nd_arch_prefix)HOST_GLOBAL_CFLAGS += -m32
-$(combo_2nd_arch_prefix)HOST_GLOBAL_LDFLAGS += -m32
-
-ifneq ($(strip $(BUILD_HOST_static)),)
-# Statically-linked binaries are desirable for sandboxed environment
-$(combo_2nd_arch_prefix)HOST_GLOBAL_LDFLAGS += -static
-endif # BUILD_HOST_static
-
-# Workaround differences in inttypes.h between host and target.
-# See bug 12708004.
-$(combo_2nd_arch_prefix)HOST_GLOBAL_CFLAGS += -D__STDC_FORMAT_MACROS -D__STDC_CONSTANT_MACROS
-
-include $(BUILD_COMBOS)/mac_version.mk
-
-$(combo_2nd_arch_prefix)HOST_TOOLCHAIN_ROOT := prebuilts/gcc/darwin-x86/host/i686-apple-darwin-4.2.1
-$(combo_2nd_arch_prefix)HOST_TOOLCHAIN_PREFIX := $($(combo_2nd_arch_prefix)HOST_TOOLCHAIN_ROOT)/bin/i686-apple-darwin11
-$(combo_2nd_arch_prefix)HOST_CC  := $($(combo_2nd_arch_prefix)HOST_TOOLCHAIN_PREFIX)-gcc
-$(combo_2nd_arch_prefix)HOST_CXX := $($(combo_2nd_arch_prefix)HOST_TOOLCHAIN_PREFIX)-g++
-
 define $(combo_var_prefix)transform-shared-lib-to-toc
 $(call _gen_toc_command_for_macho,$(1),$(2))
 endef
 
-# gcc location for clang; to be updated when clang is updated
-# HOST_TOOLCHAIN_ROOT is a Darwin-specific define
-$(combo_2nd_arch_prefix)HOST_TOOLCHAIN_FOR_CLANG := $($(combo_2nd_arch_prefix)HOST_TOOLCHAIN_ROOT)
-
-$(combo_2nd_arch_prefix)HOST_AR := $(mac_sdk_path)/Toolchains/XcodeDefault.xctoolchain/usr/bin/ar
-
-$(combo_2nd_arch_prefix)HOST_GLOBAL_CFLAGS += -isysroot $(mac_sdk_root) -mmacosx-version-min=$(mac_sdk_version) -DMACOSX_DEPLOYMENT_TARGET=$(mac_sdk_version)
-$(combo_2nd_arch_prefix)HOST_GLOBAL_LDFLAGS += -isysroot $(mac_sdk_root) -Wl,-syslibroot,$(mac_sdk_root) -mmacosx-version-min=$(mac_sdk_version)
-
-$(combo_2nd_arch_prefix)HOST_GLOBAL_CFLAGS += -fPIC -funwind-tables
-$(combo_2nd_arch_prefix)HOST_NO_UNDEFINED_LDFLAGS := -Wl,-undefined,error
-
-$(combo_2nd_arch_prefix)HOST_SHLIB_SUFFIX := .dylib
-$(combo_2nd_arch_prefix)HOST_JNILIB_SUFFIX := .jnilib
-
 $(combo_2nd_arch_prefix)HOST_GLOBAL_ARFLAGS := cqs
-
-# Use Darwin's libc++, as Darwin's libstdc++ is old and does not support C++11
-$(combo_2nd_arch_prefix)HOST_SYSTEMCPP_CPPFLAGS := -isystem $(mac_sdk_path)/Toolchains/XcodeDefault.xctoolchain/usr/include/c++/v1
-$(combo_2nd_arch_prefix)HOST_SYSTEMCPP_LDFLAGS := -stdlib=libc++
 
 ############################################################
 ## Macros after this line are shared by the 64-bit config.

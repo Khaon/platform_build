@@ -3,13 +3,9 @@ SOONG := $(SOONG_OUT_DIR)/soong
 SOONG_BOOTSTRAP := $(SOONG_OUT_DIR)/.soong.bootstrap
 SOONG_BUILD_NINJA := $(SOONG_OUT_DIR)/build.ninja
 SOONG_IN_MAKE := $(SOONG_OUT_DIR)/.soong.in_make
+SOONG_MAKEVARS_MK := $(SOONG_OUT_DIR)/make_vars-$(TARGET_PRODUCT).mk
 SOONG_VARIABLES := $(SOONG_OUT_DIR)/soong.variables
-
-# Only include the Soong-generated Android.mk if we're merging the
-# Soong-defined binaries with Kati-defined binaries.
-ifeq ($(USE_SOONG),true)
-SOONG_ANDROID_MK := $(SOONG_OUT_DIR)/Android.mk
-endif
+SOONG_ANDROID_MK := $(SOONG_OUT_DIR)/Android-$(TARGET_PRODUCT).mk
 
 # We need to rebootstrap soong if SOONG_OUT_DIR or the reverse path from
 # SOONG_OUT_DIR to TOP changes
@@ -37,6 +33,8 @@ $(SOONG_VARIABLES): FORCE
 	$(hide) mkdir -p $(dir $@)
 	$(hide) (\
 	echo '{'; \
+	echo '    "Make_suffix": "-$(TARGET_PRODUCT)",'; \
+	echo ''; \
 	echo '    "Platform_sdk_version": $(PLATFORM_SDK_VERSION),'; \
 	echo '    "Unbundled_build": $(if $(TARGET_BUILD_APPS),true,false),'; \
 	echo '    "Brillo": $(if $(BRILLO),true,false),'; \
@@ -44,6 +42,7 @@ $(SOONG_VARIABLES): FORCE
 	echo '    "Allow_missing_dependencies": $(if $(TARGET_BUILD_APPS)$(filter true,$(SOONG_ALLOW_MISSING_DEPENDENCIES)),true,false),'; \
 	echo '    "SanitizeHost": [$(if $(SANITIZE_HOST),"$(subst $(comma),"$(comma)",$(SANITIZE_HOST))")],'; \
 	echo '    "SanitizeDevice": [$(if $(SANITIZE_TARGET),"$(subst $(comma),"$(comma)",$(SANITIZE_TARGET))")],'; \
+	echo '    "HostStaticBinaries": $(if $(strip $(BUILD_HOST_static)),true,false),'; \
 	echo ''; \
 	echo '    "DeviceName": "$(TARGET_DEVICE)",'; \
 	echo '    "DeviceArch": "$(TARGET_ARCH)",'; \
@@ -62,7 +61,8 @@ $(SOONG_VARIABLES): FORCE
 	echo ''; \
 	echo '    "CrossHost": "$(HOST_CROSS_OS)",'; \
 	echo '    "CrossHostArch": "$(HOST_CROSS_ARCH)",'; \
-	echo '    "CrossHostSecondaryArch": "$(HOST_CROSS_2ND_ARCH)"'; \
+	echo '    "CrossHostSecondaryArch": "$(HOST_CROSS_2ND_ARCH)",'; \
+	echo '    "Safestack": $(if $(filter true,$(USE_SAFESTACK)),true,false)'; \
 	echo '}') > $(SOONG_VARIABLES_TMP); \
 	if ! cmp -s $(SOONG_VARIABLES_TMP) $(SOONG_VARIABLES); then \
 	  mv $(SOONG_VARIABLES_TMP) $(SOONG_VARIABLES); \

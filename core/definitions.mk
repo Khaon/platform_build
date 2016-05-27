@@ -140,18 +140,15 @@ endef
 ###########################################################
 ## Remove any makefiles that are being handled by soong
 ###########################################################
-ifeq ($(USE_SOONG),true)
 define filter-soong-makefiles
 $(foreach mk,$(1),\
   $(if $(wildcard $(patsubst %/Android.mk,%/Android.bp,$(mk))),\
-    $(info skipping $(mk) ...),\
+    $(if $(wildcard $(patsubst %/Android.mk,%/Android.soong.mk,$(mk))),\
+      $(info skipping $(mk), but including Android.soong.mk ...)\
+        $(patsubst %/Android.mk,%/Android.soong.mk,$(mk)),\
+      $(info skipping $(mk) ...)),\
     $(mk)))
 endef
-else
-define filter-soong-makefiles
-$(1)
-endef
-endif
 
 ###########################################################
 ## Retrieve a list of all makefiles immediately below some directory
@@ -402,7 +399,7 @@ endef
 
 define find-subdir-assets
 $(sort $(if $(1),$(patsubst ./%,%, \
-	$(shell if [ -d $(1) ] ; then cd $(1) ; find ./ -not -name '.*' -and -type f -and -not -type l ; fi)), \
+	$(shell if [ -d $(1) ] ; then cd $(1) ; find -L ./ -not -name '.*' -and -type f ; fi)), \
 	$(warning Empty argument supplied to find-subdir-assets) \
 ))
 endef
@@ -2596,7 +2593,6 @@ $(foreach t,$(1),\
   $(eval s := $(patsubst $(2)%,%,$(t)))\
   $(hide) mkdir -p $(dir $(3)/$(s)); cp -Rf $(t) $(3)/$(s)$(newline))
 endef
-
 
 ###########################################################
 ## Commands to call Proguard

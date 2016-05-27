@@ -1679,11 +1679,12 @@ endif
 
 ifeq ($(AB_OTA_UPDATER),true)
 # Build zlib fingerprint if using the AB Updater.
-$(BUILT_TARGET_FILES_PACKAGE): $(TARGET_OUT_COMMON_GEN)/zlib_fingerprint
+updater_dep := $(TARGET_OUT_COMMON_GEN)/zlib_fingerprint
 else
 # Build OTA tools if not using the AB Updater.
-$(BUILT_TARGET_FILES_PACKAGE): $(built_ota_tools)
+updater_dep := $(built_ota_tools)
 endif
+$(BUILT_TARGET_FILES_PACKAGE): $(updater_dep)
 
 # If we are using recovery as boot, output recovery files to BOOT/.
 ifeq ($(BOARD_USES_RECOVERY_AS_BOOT),true)
@@ -1706,6 +1707,7 @@ $(BUILT_TARGET_FILES_PACKAGE): \
 		$(SELINUX_FC) \
 		$(APKCERTS_FILE) \
 		$(HOST_OUT_EXECUTABLES)/fs_config \
+		build/tools/releasetools/add_img_to_target_files \
 		| $(ACP)
 	@echo "Package target files: $@"
 	$(hide) rm -rf $@ $(zip_root)
@@ -1874,6 +1876,17 @@ ifeq ($(AB_OTA_UPDATER),true)
 	@# Include the build type in META/misc_info.txt so the server can easily differentiate production builds.
 	$(hide) echo "build_type=$(TARGET_BUILD_VARIANT)" >> $(zip_root)/META/misc_info.txt
 	$(hide) echo "ab_update=true" >> $(zip_root)/META/misc_info.txt
+ifdef BRILLO_VENDOR_PARTITIONS
+	$(hide) mkdir -p $(zip_root)/VENDOR_IMAGES
+	$(hide) for f in $(BRILLO_VENDOR_PARTITIONS); do \
+	  pair1="$$(echo $$f | awk -F':' '{print $$1}')"; \
+	  pair2="$$(echo $$f | awk -F':' '{print $$2}')"; \
+	  src=$${pair1}/$${pair2}; \
+	  dest=$(zip_root)/VENDOR_IMAGES/$${pair2}; \
+	  mkdir -p $$(dirname "$${dest}"); \
+	  $(ACP) $${src} $${dest}; \
+	done;
+endif
 ifdef OSRELEASED_DIRECTORY
 	$(hide) $(ACP) $(TARGET_OUT_ETC)/$(OSRELEASED_DIRECTORY)/product_id $(zip_root)/META/product_id.txt
 	$(hide) $(ACP) $(TARGET_OUT_ETC)/$(OSRELEASED_DIRECTORY)/product_version $(zip_root)/META/product_version.txt
@@ -1924,7 +1937,8 @@ INTERNAL_OTA_PACKAGE_TARGET := $(PRODUCT_OUT)/$(name).zip
 
 $(INTERNAL_OTA_PACKAGE_TARGET): KEY_CERT_PAIR := $(DEFAULT_KEY_CERT_PAIR)
 
-$(INTERNAL_OTA_PACKAGE_TARGET): $(BUILT_TARGET_FILES_PACKAGE)
+$(INTERNAL_OTA_PACKAGE_TARGET): $(BUILT_TARGET_FILES_PACKAGE) \
+		build/tools/releasetools/ota_from_target_files
 	@echo "Package OTA: $@"
 	$(hide) PATH=$(foreach p,$(INTERNAL_USERIMAGES_BINARY_PATHS),$(p):)$$PATH MKBOOTIMG=$(MKBOOTIMG) \
 	   ./build/tools/releasetools/ota_from_target_files -v \
@@ -1949,7 +1963,8 @@ name := $(name)-img-$(FILE_NAME_TAG)
 
 INTERNAL_UPDATE_PACKAGE_TARGET := $(PRODUCT_OUT)/$(name).zip
 
-$(INTERNAL_UPDATE_PACKAGE_TARGET): $(BUILT_TARGET_FILES_PACKAGE)
+$(INTERNAL_UPDATE_PACKAGE_TARGET): $(BUILT_TARGET_FILES_PACKAGE) \
+		build/tools/releasetools/img_from_target_files
 	@echo "Package: $@"
 	$(hide) PATH=$(foreach p,$(INTERNAL_USERIMAGES_BINARY_PATHS),$(p):)$$PATH MKBOOTIMG=$(MKBOOTIMG) \
 	   ./build/tools/releasetools/img_from_target_files -v \
@@ -1972,7 +1987,11 @@ name := $(name)-symbols-$(FILE_NAME_TAG)
 SYMBOLS_ZIP := $(PRODUCT_OUT)/$(name).zip
 # For apps_only build we'll establish the dependency later in build/core/main.mk.
 ifndef TARGET_BUILD_APPS
-$(SYMBOLS_ZIP): $(INSTALLED_SYSTEMIMAGE) $(INSTALLED_BOOTIMAGE_TARGET)
+$(SYMBOLS_ZIP): $(INSTALLED_SYSTEMIMAGE) \
+		$(INSTALLED_BOOTIMAGE_TARGET) \
+		$(INSTALLED_USERDATAIMAGE_TARGET) \
+		$(INSTALLED_VENDORIMAGE_TARGET) \
+		$(updater_dep)
 endif
 $(SYMBOLS_ZIP):
 	@echo "Package symbols: $@"

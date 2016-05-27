@@ -107,6 +107,8 @@ $(shell mkdir -p $(OUT_DIR) && touch $(OUT_DIR)/ninja_build)
 include build/core/ninja.mk
 else # KATI
 
+include $(SOONG_MAKEVARS_MK)
+
 # Write the build number to a file so it can be read back in
 # without changing the command line every time.  Avoids rebuilds
 # when using ninja.
@@ -513,7 +515,7 @@ endif
 ifneq ($(ONE_SHOT_MAKEFILE),)
 # We've probably been invoked by the "mm" shell function
 # with a subdirectory's makefile.
-include $(ONE_SHOT_MAKEFILE)
+include  $(SOONG_ANDROID_MK) $(call filter-soong-makefiles,$(ONE_SHOT_MAKEFILE))
 # Change CUSTOM_MODULES to include only modules that were
 # defined by this makefile; this will install all of those
 # modules as a side-effect.  Do this after including ONE_SHOT_MAKEFILE
@@ -545,9 +547,7 @@ ifneq ($(dont_bother),true)
 subdir_makefiles := \
 	$(shell build/tools/findleaves.py $(FIND_LEAVES_EXCLUDES) $(subdirs) Android.mk)
 
-ifeq ($(USE_SOONG),true)
 subdir_makefiles := $(SOONG_ANDROID_MK) $(call filter-soong-makefiles,$(subdir_makefiles))
-endif
 
 $(foreach mk, $(subdir_makefiles),$(info including $(mk) ...)$(eval include $(mk)))
 
@@ -888,9 +888,8 @@ files: $(modules_to_install) \
 
 .PHONY: checkbuild
 checkbuild: $(modules_to_check) droid_targets
-ifeq ($(USE_SOONG),true)
 checkbuild: checkbuild-soong
-endif
+
 ifeq (true,$(ANDROID_BUILD_EVERYTHING_BY_DEFAULT))
 droid: checkbuild
 endif

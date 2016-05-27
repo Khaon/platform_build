@@ -43,15 +43,15 @@ my_target_global_ld_dirs := $($(LOCAL_2ND_ARCH_VAR_PREFIX)TARGET_GLOBAL_LD_DIRS)
 ifeq ($(LOCAL_NO_LIBGCC),true)
 my_target_libgcc :=
 else
-my_target_libgcc := $($(LOCAL_2ND_ARCH_VAR_PREFIX)TARGET_LIBGCC)
+my_target_libgcc := $(call intermediates-dir-for,STATIC_LIBRARIES,libgcc,,,$(LOCAL_2ND_ARCH_VAR_PREFIX))/libgcc.a
 endif
-my_target_libatomic := $($(LOCAL_2ND_ARCH_VAR_PREFIX)TARGET_LIBATOMIC)
+my_target_libatomic := $(call intermediates-dir-for,STATIC_LIBRARIES,libatomic,,,$(LOCAL_2ND_ARCH_VAR_PREFIX))/libatomic.a
 ifeq ($(LOCAL_NO_CRT),true)
 my_target_crtbegin_so_o :=
 my_target_crtend_so_o :=
 else
-my_target_crtbegin_so_o := $($(LOCAL_2ND_ARCH_VAR_PREFIX)TARGET_CRTBEGIN_SO_O)
-my_target_crtend_so_o := $($(LOCAL_2ND_ARCH_VAR_PREFIX)TARGET_CRTEND_SO_O)
+my_target_crtbegin_so_o := $($(LOCAL_2ND_ARCH_VAR_PREFIX)TARGET_OUT_INTERMEDIATE_LIBRARIES)/crtbegin_so.o
+my_target_crtend_so_o := $($(LOCAL_2ND_ARCH_VAR_PREFIX)TARGET_OUT_INTERMEDIATE_LIBRARIES)/crtend_so.o
 endif
 ifdef LOCAL_SDK_VERSION
 # Make sure the prebuilt NDK paths are put ahead of the TARGET_GLOBAL_LD_DIRS,
@@ -76,6 +76,8 @@ $(linked_module): \
         $(all_libraries) \
         $(my_target_crtbegin_so_o) \
         $(my_target_crtend_so_o) \
+        $(my_target_libgcc) \
+        $(my_target_libatomic) \
         $(LOCAL_ADDITIONAL_DEPENDENCIES)
 	$(transform-o-to-shared-lib)
 

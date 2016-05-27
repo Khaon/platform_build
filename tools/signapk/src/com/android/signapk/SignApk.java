@@ -52,6 +52,7 @@ import java.io.OutputStream;
 import java.io.PrintStream;
 import java.lang.reflect.Constructor;
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.security.DigestOutputStream;
 import java.security.GeneralSecurityException;
 import java.security.InvalidKeyException;
@@ -118,6 +119,19 @@ class SignApk {
     private static final String CERT_SIG_MULTI_NAME = "META-INF/CERT%d.%s";
 
     private static final String OTACERT_NAME = "META-INF/com/android/otacert";
+
+    /**
+     * Extensible data block/field header ID used for storing information about alignment of
+     * uncompressed entries as well as for aligning the entries's data. See ZIP appnote.txt section
+     * 4.5 Extensible data fields.
+     */
+    private static final short ALIGNMENT_ZIP_EXTRA_DATA_FIELD_HEADER_ID = (short) 0xd935;
+
+    /**
+     * Minimum size (in bytes) of the extensible data block/field used for alignment of uncompressed
+     * entries.
+     */
+    private static final short ALIGNMENT_ZIP_EXTRA_DATA_FIELD_MIN_SIZE_BYTES = 6;
 
     // bitmasks for which hash algorithms we need the manifest to include.
     private static final int USE_SHA1 = 1;
@@ -200,10 +214,10 @@ class SignApk {
         }
     }
 
-    // Files matching this pattern are not copied to the output.
-    private static Pattern stripPattern =
-        Pattern.compile("^(META-INF/((.*)[.](SF|RSA|DSA|EC)|com/android/otacert))|(" +
-                        Pattern.quote(JarFile.MANIFEST_NAME) + ")$");
+    /* Files matching this pattern are not copied to the output. */
+    private static final Pattern STRIP_PATTERN =
+            Pattern.compile("^(META-INF/((.*)[.](SF|RSA|DSA|EC)|com/android/otacert))|("
+                    + Pattern.quote(JarFile.MANIFEST_NAME) + ")$");
 
     private static X509Certificate readPublicKey(File file)
         throws IOException, GeneralSecurityException {
@@ -313,8 +327,9 @@ class SignApk {
      * Add the hash(es) of every file to the manifest, creating it if
      * necessary.
      */
-    private static Manifest addDigestsToManifest(JarFile jar, int hashes)
-        throws IOException, GeneralSecurityException {
+    private static Manifest addDigestsToManifest(
+            JarFile jar, Pattern ignoredFilenamePattern, int hashes)
+                    throws IOException, GeneralSecurityException {
         Manifest input = jar.getManifest();
         Manifest output = new Manifest();
         Attributes main = output.getMainAttributes();
@@ -350,8 +365,9 @@ class SignApk {
 
         for (JarEntry entry: byName.values()) {
             String name = entry.getName();
-            if (!entry.isDirectory() &&
-                (stripPattern == null || !stripPattern.matcher(name).matches())) {
+            if (!entry.isDirectory()
+                    && (ignoredFilenamePattern == null
+                            || !ignoredFilenamePattern.matcher(name).matches())) {
                 InputStream data = jar.getInputStream(entry);
                 while ((num = data.read(buffer)) > 0) {
                     if (md_sha1 != null) md_sha1.update(buffer, 0, num);
@@ -394,16 +410,13 @@ class SignApk {
      * Add a copy of the public key to the archive; this should
      * exactly match one of the files in
      * /system/etc/security/otacerts.zip on the device.  (The same
-     * cert can be extracted from the CERT.RSA file but this is much
-     * easier to get at.)
+     * cert can be extracted from the OTA update package's signature
+     * block but this is much easier to get at.)
      */
     private static void addOtacert(JarOutputStream outputJar,
                                    File publicKeyFile,
-                                   long timestamp,
-                                   Manifest manifest,
-                                   int hash)
+                                   long timestamp)
         throws IOException, GeneralSecurityException {
-        MessageDigest md = MessageDigest.getInstance(hash == USE_SHA1 ? "SHA1" : "SHA256");
 
         JarEntry je = new JarEntry(OTACERT_NAME);
         je.setTime(timestamp);
@@ -413,14 +426,8 @@ class SignApk {
         int read;
         while ((read = input.read(b)) != -1) {
             outputJar.write(b, 0, read);
-            md.update(b, 0, read);
         }
         input.close();
-
-        Attributes attr = new Attributes();
-        attr.putValue(hash == USE_SHA1 ? "SHA1-Digest" : "SHA-256-Digest",
-                      new String(Base64.encode(md.digest()), "ASCII"));
-        manifest.getEntries().put(OTACERT_NAME, attr);
     }
 
 
@@ -545,18 +552,31 @@ class SignApk {
     }
 
     /**
-     * Copy all the files in a manifest from input to output.  We set
-     * the modification times in the output to a fixed time, so as to
-     * reduce variation in the output file and make incremental OTAs
-     * more efficient.
+     * Copy all JAR entries from input to output. We set the modification times in the output to a
+     * fixed time, so as to reduce variation in the output file and make incremental OTAs more
+     * efficient.
      */
-    private static void copyFiles(Manifest manifest, JarFile in, JarOutputStream out,
-                                  long timestamp, int defaultAlignment) throws IOException {
+    private static void copyFiles(JarFile in,
+            Pattern ignoredFilenamePattern,
+            JarOutputStream out,
+            long timestamp,
+            int defaultAlignment) throws IOException {
         byte[] buffer = new byte[4096];
         int num;
 
-        Map<String, Attributes> entries = manifest.getEntries();
-        ArrayList<String> names = new ArrayList<String>(entries.keySet());
+        ArrayList<String> names = new ArrayList<String>();
+        for (Enumeration<JarEntry> e = in.entries(); e.hasMoreElements();) {
+            JarEntry entry = e.nextElement();
+            if (entry.isDirectory()) {
+                continue;
+            }
+            String entryName = entry.getName();
+            if ((ignoredFilenamePattern != null)
+                    && (ignoredFilenamePattern.matcher(entryName).matches())) {
+                continue;
+            }
+            names.add(entryName);
+        }
         Collections.sort(names);
 
         boolean firstEntry = true;
@@ -582,28 +602,40 @@ class SignApk {
             outEntry.setComment(null);
             outEntry.setExtra(null);
 
-            // 'offset' is the offset into the file at which we expect
-            // the file data to begin.  This is the value we need to
-            // make a multiple of 'alignement'.
+            int alignment = getStoredEntryDataAlignment(name, defaultAlignment);
+            // Alignment of the entry's data is achieved by adding a data block to the entry's Local
+            // File Header extra field. The data block contains information about the alignment
+            // value and the necessary padding bytes (0x00) to achieve the alignment.  This works
+            // because the entry's data will be located immediately after the extra field.
+            // See ZIP APPNOTE.txt section "4.5 Extensible data fields" for details about the format
+            // of the extra field.
+
+            // 'offset' is the offset into the file at which we expect the entry's data to begin.
+            // This is the value we need to make a multiple of 'alignment'.
             offset += JarFile.LOCHDR + outEntry.getName().length();
             if (firstEntry) {
-                // The first entry in a jar file has an extra field of
-                // four bytes that you can't get rid of; any extra
-                // data you specify in the JarEntry is appended to
-                // these forced four bytes.  This is JAR_MAGIC in
-                // JarOutputStream; the bytes are 0xfeca0000.
+                // The first entry in a jar file has an extra field of four bytes that you can't get
+                // rid of; any extra data you specify in the JarEntry is appended to these forced
+                // four bytes.  This is JAR_MAGIC in JarOutputStream; the bytes are 0xfeca0000.
+                // See http://bugs.java.com/bugdatabase/view_bug.do?bug_id=6808540
+                // and http://bugs.java.com/bugdatabase/view_bug.do?bug_id=4138619.
                 offset += 4;
                 firstEntry = false;
             }
-            int alignment = getStoredEntryDataAlignment(name, defaultAlignment);
-            if (alignment > 0 && (offset % alignment != 0)) {
-                // Set the "extra data" of the entry to between 1 and
-                // alignment-1 bytes, to make the file data begin at
-                // an aligned offset.
-                int needed = alignment - (int)(offset % alignment);
-                outEntry.setExtra(new byte[needed]);
-                offset += needed;
+            int extraPaddingSizeBytes = 0;
+            if (alignment > 0) {
+                long paddingStartOffset = offset + ALIGNMENT_ZIP_EXTRA_DATA_FIELD_MIN_SIZE_BYTES;
+                extraPaddingSizeBytes = alignment - (int) (paddingStartOffset % alignment);
             }
+            byte[] extra =
+                    new byte[ALIGNMENT_ZIP_EXTRA_DATA_FIELD_MIN_SIZE_BYTES + extraPaddingSizeBytes];
+            ByteBuffer extraBuf = ByteBuffer.wrap(extra);
+            extraBuf.order(ByteOrder.LITTLE_ENDIAN);
+            extraBuf.putShort(ALIGNMENT_ZIP_EXTRA_DATA_FIELD_HEADER_ID); // Header ID
+            extraBuf.putShort((short) (2 + extraPaddingSizeBytes)); // Data Size
+            extraBuf.putShort((short) alignment);
+            outEntry.setExtra(extra);
+            offset += extra.length;
 
             out.putNextEntry(outEntry);
 
@@ -757,17 +789,8 @@ class SignApk {
                 signer = new WholeFileSignerOutputStream(out, outputStream);
                 JarOutputStream outputJar = new JarOutputStream(signer);
 
-                Manifest manifest = addDigestsToManifest(inputJar, hash);
-                copyFiles(manifest, inputJar, outputJar, timestamp, 0);
-                addOtacert(outputJar, publicKeyFile, timestamp, manifest, hash);
-
-                signFile(manifest,
-                         new X509Certificate[]{ publicKey },
-                         new PrivateKey[]{ privateKey },
-                         new int[] { hash },
-                         timestamp,
-                         false, // Don't sign using APK Signature Scheme v2
-                         outputJar);
+                copyFiles(inputJar, STRIP_PATTERN, outputJar, timestamp, 0);
+                addOtacert(outputJar, publicKeyFile, timestamp);
 
                 signer.notifyClosing();
                 outputJar.close();
@@ -1156,8 +1179,9 @@ class SignApk {
                     v1DigestAlgorithm[i] = getV1DigestAlgorithmForApk(publicKey[i], minSdkVersion);
                     v1DigestAlgorithmBitSet |= v1DigestAlgorithm[i];
                 }
-                Manifest manifest = addDigestsToManifest(inputJar, v1DigestAlgorithmBitSet);
-                copyFiles(manifest, inputJar, outputJar, timestamp, alignment);
+                Manifest manifest =
+                        addDigestsToManifest(inputJar, STRIP_PATTERN, v1DigestAlgorithmBitSet);
+                copyFiles(inputJar, STRIP_PATTERN, outputJar, timestamp, alignment);
                 signFile(
                         manifest,
                         publicKey, privateKey, v1DigestAlgorithm,

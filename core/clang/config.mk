@@ -3,11 +3,6 @@
 LLVM_PREBUILTS_PATH := $(LLVM_PREBUILTS_BASE)/$(BUILD_OS)-x86/$(LLVM_PREBUILTS_VERSION)/bin
 LLVM_RTLIB_PATH := $(LLVM_PREBUILTS_PATH)/../lib64/clang/$(LLVM_RELEASE_VERSION)/lib/linux/
 
-CLANG := $(LLVM_PREBUILTS_PATH)/clang$(BUILD_EXECUTABLE_SUFFIX)
-CLANG_CXX := $(LLVM_PREBUILTS_PATH)/clang++$(BUILD_EXECUTABLE_SUFFIX)
-LLVM_AS := $(LLVM_PREBUILTS_PATH)/llvm-as$(BUILD_EXECUTABLE_SUFFIX)
-LLVM_LINK := $(LLVM_PREBUILTS_PATH)/llvm-link$(BUILD_EXECUTABLE_SUFFIX)
-
 CLANG_TBLGEN := $(BUILD_OUT_EXECUTABLES)/clang-tblgen$(BUILD_EXECUTABLE_SUFFIX)
 LLVM_TBLGEN := $(BUILD_OUT_EXECUTABLES)/llvm-tblgen$(BUILD_EXECUTABLE_SUFFIX)
 
@@ -20,48 +15,6 @@ RS_LLVM_PREBUILTS_PATH := $(RS_LLVM_PREBUILTS_BASE)/$(BUILD_OS)-x86/$(RS_LLVM_PR
 RS_CLANG := $(RS_LLVM_PREBUILTS_PATH)/clang$(BUILD_EXECUTABLE_SUFFIX)
 RS_LLVM_AS := $(RS_LLVM_PREBUILTS_PATH)/llvm-as$(BUILD_EXECUTABLE_SUFFIX)
 RS_LLVM_LINK := $(RS_LLVM_PREBUILTS_PATH)/llvm-link$(BUILD_EXECUTABLE_SUFFIX)
-
-# Clang flags for all host or target rules
-CLANG_CONFIG_EXTRA_ASFLAGS :=
-CLANG_CONFIG_EXTRA_CFLAGS := -O3 -mtune=cortex-a15 -Qunused-arguments
-CLANG_CONFIG_EXTRA_CONLYFLAGS := -std=gnu99
-CLANG_CONFIG_EXTRA_CPPFLAGS := -O3 -mtune=cortex-a15 -Qunused-arguments
-CLANG_CONFIG_EXTRA_LDFLAGS := -Wl,--sort-common
-
-CLANG_CONFIG_EXTRA_CFLAGS += \
-  -D__compiler_offsetof=__builtin_offsetof
-
-# Help catch common 32/64-bit errors.
-CLANG_CONFIG_EXTRA_CFLAGS += \
-  -Werror=int-conversion
-
-# Disable overly aggressive warning for macros defined with a leading underscore
-# This used to happen in AndroidConfig.h, which was included everywhere.
-# TODO: can we remove this now?
-CLANG_CONFIG_EXTRA_CFLAGS += \
-  -Wno-reserved-id-macro
-
-# Disable overly aggressive warning for format strings.
-# Bug: 20148343
-CLANG_CONFIG_EXTRA_CFLAGS += \
-  -Wno-format-pedantic
-
-# Workaround for ccache with clang.
-# See http://petereisentraut.blogspot.com/2011/05/ccache-and-clang.html.
-CLANG_CONFIG_EXTRA_CFLAGS += \
-  -Wno-unused-command-line-argument
-
-# Disable -Winconsistent-missing-override until we can clean up the existing
-# codebase for it.
-CLANG_CONFIG_EXTRA_CPPFLAGS += \
-  -Wno-inconsistent-missing-override
-
-# Force clang to always output color diagnostics.  Ninja will strip the ANSI
-# color codes if it is not running in a terminal.
-ifdef BUILDING_WITH_NINJA
-CLANG_CONFIG_EXTRA_CFLAGS += \
-  -fcolor-diagnostics
-endif
 
 CLANG_CONFIG_UNKNOWN_CFLAGS := \
   -finline-functions \
@@ -90,24 +43,30 @@ CLANG_CONFIG_UNKNOWN_CFLAGS := \
   -Wunused-but-set-parameter \
   -Wunused-but-set-variable \
   -fdiagnostics-color \
+  -mthumb-interwork \
+  -fgcse-after-reload \
+  -frerun-cse-after-loop \
+  -frename-registers \
+  -fno-align-jumps \
+  -fno-builtin-sin \
+  -fno-caller-saves \
+  -fno-early-inlining \
+  -fno-move-loop-invariants \
+  -fno-partial-inlining \
+  -fno-strict-volatile-bitfields \
+  -fno-tree-copy-prop \
+  -fno-tree-loop-optimize \
+  -msynci \
+  -mno-synci \
+  -mno-fused-madd \
+  -finline-limit=300 \
+  -fno-inline-functions-called-once \
+  -mfpmath=sse \
+  -mbionic
 
-# Clang flags for all host rules
-CLANG_CONFIG_HOST_EXTRA_ASFLAGS :=
-CLANG_CONFIG_HOST_EXTRA_CFLAGS :=
-CLANG_CONFIG_HOST_EXTRA_CPPFLAGS :=
-CLANG_CONFIG_HOST_EXTRA_LDFLAGS :=
-
-# Clang flags for all host cross rules
-CLANG_CONFIG_HOST_CROSS_EXTRA_ASFLAGS :=
-CLANG_CONFIG_HOST_CROSS_EXTRA_CFLAGS :=
-CLANG_CONFIG_HOST_CROSS_EXTRA_CPPFLAGS :=
-CLANG_CONFIG_HOST_CROSS_EXTRA_LDFLAGS :=
-
-# Clang flags for all target rules
-CLANG_CONFIG_TARGET_EXTRA_ASFLAGS :=
-CLANG_CONFIG_TARGET_EXTRA_CFLAGS := -nostdlibinc
-CLANG_CONFIG_TARGET_EXTRA_CPPFLAGS := -nostdlibinc
-CLANG_CONFIG_TARGET_EXTRA_LDFLAGS :=
+define convert-to-clang-flags
+$(strip $(filter-out $(CLANG_CONFIG_UNKNOWN_CFLAGS),$(1)))
+endef
 
 CLANG_DEFAULT_UB_CHECKS := \
   bool \

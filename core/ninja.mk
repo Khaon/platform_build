@@ -127,16 +127,12 @@ endif
 
 NINJA_ARGS += $(NINJA_EXTRA_ARGS)
 
-ifeq ($(USE_SOONG),true)
 COMBINED_BUILD_NINJA := $(OUT_DIR)/combined$(KATI_NINJA_SUFFIX).ninja
 
 $(COMBINED_BUILD_NINJA): $(KATI_BUILD_NINJA)
 	$(hide) echo "builddir = $(OUT_DIR)" > $(COMBINED_BUILD_NINJA)
 	$(hide) echo "subninja $(SOONG_BUILD_NINJA)" >> $(COMBINED_BUILD_NINJA)
 	$(hide) echo "subninja $(KATI_BUILD_NINJA)" >> $(COMBINED_BUILD_NINJA)
-else
-COMBINED_BUILD_NINJA := $(KATI_BUILD_NINJA)
-endif
 
 $(sort $(DEFAULT_GOAL) $(ANDROID_GOALS)) : ninja_wrapper
 	@#empty
@@ -159,7 +155,7 @@ ifeq ($(KATI_EMULATE_FIND),false)
 endif
 $(KATI_BUILD_NINJA): $(CKATI) $(MAKEPARALLEL) $(DUMMY_OUT_MKS) run_soong FORCE
 	@echo Running kati to generate build$(KATI_NINJA_SUFFIX).ninja...
-	+$(hide) $(KATI_MAKEPARALLEL) $(CKATI) --ninja --ninja_dir=$(OUT_DIR) --ninja_suffix=$(KATI_NINJA_SUFFIX) --regen --ignore_dirty=$(OUT_DIR)/% --no_ignore_dirty=$(SOONG_ANDROID_MK) --ignore_optional_include=$(OUT_DIR)/%.P --detect_android_echo $(KATI_FIND_EMULATOR) -f build/core/main.mk $(KATI_GOALS) --gen_all_targets BUILDING_WITH_NINJA=true SOONG_ANDROID_MK=$(SOONG_ANDROID_MK)
+	+$(hide) $(KATI_MAKEPARALLEL) $(CKATI) --ninja --ninja_dir=$(OUT_DIR) --ninja_suffix=$(KATI_NINJA_SUFFIX) --regen --ignore_dirty=$(OUT_DIR)/% --no_ignore_dirty=$(SOONG_ANDROID_MK) --no_ignore_dirty=$(SOONG_MAKEVARS_MK) --ignore_optional_include=$(OUT_DIR)/%.P --detect_android_echo $(KATI_FIND_EMULATOR) -f build/core/main.mk $(KATI_GOALS) --gen_all_targets BUILDING_WITH_NINJA=true SOONG_ANDROID_MK=$(SOONG_ANDROID_MK) SOONG_MAKEVARS_MK=$(SOONG_MAKEVARS_MK)
 
 .PHONY: FORCE
 FORCE:
